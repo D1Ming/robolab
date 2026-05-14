@@ -30,7 +30,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 """
-Batch retargeting tool: convert multiple GMR motion files to Legged Lab format.
+Batch retargeting tool: convert multiple GMR motion files to Isaac Lab format.
 
 Behavior:
  - Reads all .pkl files from the input directory (sorted).
@@ -58,7 +58,7 @@ import pickle
 from isaaclab.app import AppLauncher
 
 # append AppLauncher cli args
-parser = argparse.ArgumentParser(description="Batch retarget GMR -> Legged Lab (multiple files).")
+parser = argparse.ArgumentParser(description="Batch retarget GMR -> Isaac Lab (multiple files).")
 parser.add_argument(
     "--robot",
     type=str,
@@ -116,7 +116,7 @@ else:
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
 try:
-    from gmr_to_lab import LoopMode, extract_gmr_data, run_simulator, ReplayMotionsSceneCfg
+    from .gmr_to_lab import LoopMode, extract_gmr_data, run_simulator, ReplayMotionsSceneCfg
 except ImportError as e:
     print(f"Error importing from gmr_to_lab.py: {e}")
     raise
