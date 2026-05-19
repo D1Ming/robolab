@@ -444,26 +444,24 @@ class CommandsCfg:
         ranges=mdp.PoseVelocityCommandCfg.Ranges(lin_vel_x=(0.0, 0.0), lin_vel_y=(0.0, 0.0), ang_vel_z=(-1.0, 1.0)),
         random_velocity_terrain=["perlin_rough_stand"],
         velocity_ranges={
-            "perlin_rough": {"lin_vel_x": (0.45, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "perlin_rough": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             "perlin_rough_stand": {"lin_vel_x": (0.0, 0.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (0.0, 0.0)},
-            "square_gaps": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
-            "pyramid_stairs": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
-            "pyramid_stairs_high": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
-            "pyramid_stairs_inv": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
-            "pyramid_stairs_inv_high": {
-                "lin_vel_x": (0.45, 0.8),
-                "lin_vel_y": (0.0, 0.0),
-                "ang_vel_z": (-1.0, 1.0),
-            },
+            "square_gaps": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "pyramid_stairs_32": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "pyramid_stairs_30": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "pyramid_stairs_28": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "pyramid_stairs_inv_32": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "pyramid_stairs_inv_30": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "pyramid_stairs_inv_28": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             "pyramid_stairs_inv_high_ground_aligned": {
-                "lin_vel_x": (0.45, 0.8),
+                "lin_vel_x": (0.4, 1.0),
                 "lin_vel_y": (0.0, 0.0),
                 "ang_vel_z": (-1.0, 1.0),
             },
-            "stepping_stones": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            # "stepping_stones": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             # "boxes": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             # "mesh_boxes": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
-            # "hf_pyramid_slope_inv": {"lin_vel_x": (0.45, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "hf_pyramid_slope_inv": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
         },
         only_positive_lin_vel_x=True,
         lin_vel_threshold=0.0,
@@ -497,7 +495,6 @@ class ParkourRewardsCfg:
         weight=-4.0,
         params={
             "sensor_cfg": SceneEntityCfg("leg_volume_points"),
-            # "points_grid_cfg": LEG_VOLUME_POINTS_GRID,
         },
     )
     volume_points_penetration_knee = RewTerm(
@@ -527,11 +524,11 @@ class ParkourRewardsCfg:
     )
     joint_deviation_upper_body = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.1,
+        weight=-0.3,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot",
-                joint_names=[".*_arm_.*_joint", ".*_elbow_.*_joint"],
+                joint_names=[".*_arm_.*_joint", ".*_elbow_.*_joint", "torso_joint"],
             )
         },
     )
@@ -544,8 +541,8 @@ class ParkourRewardsCfg:
     #         ),
     #     },
     # )
-    left_thigh_yaw_joint_sign = RewTerm(func=mdp.left_thigh_yaw_joint_sign_l1, weight=-1.0)
-    right_thigh_yaw_joint_sign = RewTerm(func=mdp.right_thigh_yaw_joint_sign_l1, weight=-1.0)
+    left_thigh_yaw_joint_sign = RewTerm(func=mdp.left_thigh_yaw_joint_sign_l1, weight=-100.0)
+    right_thigh_yaw_joint_sign = RewTerm(func=mdp.right_thigh_yaw_joint_sign_l1, weight=-100.0)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     dof_torques_l2 = RewTerm(
         func=mdp.joint_torques_l2,
@@ -568,14 +565,14 @@ class ParkourRewardsCfg:
     pelvis_orientation_l2 = RewTerm(
         func=mdp.link_orientation, weight=-3.0, params={"asset_cfg": SceneEntityCfg("robot", body_names="torso_link")},
     )
-    feet_flat_ori = RewTerm(
-        func=mdp.feet_orientation_contact,
-        weight=-0.4,
-        params={
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
-        },
-    )
+    # feet_flat_ori = RewTerm(
+    #     func=mdp.feet_orientation_contact,
+    #     weight=-0.4,
+    #     params={
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
+    #     },
+    # )
     feet_at_plane = RewTerm(
         func=mdp.feet_at_plane,
         weight=-0.1,
@@ -585,6 +582,16 @@ class ParkourRewardsCfg:
             "right_height_scanner_cfg": SceneEntityCfg("right_height_scanner"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
             "height_offset": 0.035,
+        },
+    )
+    sound_suppression = RewTerm(
+        func=mdp.sound_suppression_acc_per_foot,
+        weight=-5e-4,
+        params={
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces",
+                body_names=".*_ankle_roll_link",
+            ),
         },
     )
     # feet_close_xy = RewTerm(
@@ -605,16 +612,16 @@ class ParkourRewardsCfg:
     #         "std": math.sqrt(0.05),
     #     },
     # )
-    feet_distance = RewTerm(
-        func=mdp.body_distance_y,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*ankle_roll.*"]), "min": 0.12, "max": 0.3},
-    )
-    knee_distance = RewTerm(
-        func=mdp.body_distance_y,
-        weight=0.1,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_knee.*"]), "min": 0.16, "max": 0.3},
-    )   
+    # feet_distance = RewTerm(
+    #     func=mdp.body_distance_y,
+    #     weight=0.1,
+    #     params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*ankle_roll.*"]), "min": 0.12, "max": 0.3},
+    # )
+    # knee_distance = RewTerm(
+    #     func=mdp.body_distance_y,
+    #     weight=0.1,
+    #     params={"asset_cfg": SceneEntityCfg("robot", body_names=[".*_knee.*"]), "min": 0.16, "max": 0.3},
+    # )   
     energy = RewTerm(
         func=mdp.motors_power_square,
         weight=-5e-5,
@@ -640,7 +647,7 @@ class ParkourRewardsCfg:
         weight=-0.01,
         params={
             "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
-            "limit_ratio": 0.8,
+            "limit_ratio": 0.9,
         },
     )
     undesired_contacts = RewTerm(
@@ -840,16 +847,16 @@ class EventCfg:
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
-    terrain_levels = CurrTerm(
-        func=mdp.tracking_exp_vel, params={"lin_vel_threshold": (0.3, 0.8), "ang_vel_threshold": (0.0, 0.0)}
-    )
+    # terrain_levels = CurrTerm(
+    #     func=mdp.tracking_exp_vel, params={"lin_vel_threshold": (0.5, 0.8), "ang_vel_threshold": (0.0, 0.0)}
+    # )
     volume_points_penetration_weight_feet = CurrTerm(
         func=mdp.modify_rewards_weight,
         params={
             "term_name": "volume_points_penetration_feet",
             "init_weight": -4.0,
             "final_weight": -80.0,
-            "lin_vel_threshold": (0.3, 0.8),
+            "lin_vel_threshold": (0.5, 0.8),
             "ang_vel_threshold": (0.0, 0.0),
             "step_size": 0.1,
         },
@@ -860,7 +867,7 @@ class CurriculumCfg:
             "term_name": "volume_points_penetration_knee",
             "init_weight": -4.0,
             "final_weight": -80.0,
-            "lin_vel_threshold": (0.3, 0.8),
+            "lin_vel_threshold": (0.5, 0.8),
             "ang_vel_threshold": (0.0, 0.0),
             "step_size": 0.1,
         },
@@ -871,7 +878,7 @@ class CurriculumCfg:
             "term_name": "feet_stumble",
             "init_weight": -1.0,
             "final_weight": -10.0,
-            "lin_vel_threshold": (0.3, 0.8),
+            "lin_vel_threshold": (0.5, 0.8),
             "ang_vel_threshold": (0.0, 0.0),
             "step_size": 0.1,
         },
@@ -882,7 +889,7 @@ class CurriculumCfg:
             "term_name": "undesired_contacts",
             "init_weight": -1.0,
             "final_weight": -10.0,
-            "lin_vel_threshold": (0.3, 0.8),
+            "lin_vel_threshold": (0.5, 0.8),
             "ang_vel_threshold": (0.0, 0.0),
             "step_size": 0.1,
         },

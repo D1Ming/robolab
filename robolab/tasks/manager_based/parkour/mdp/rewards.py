@@ -59,9 +59,9 @@ def feet_air_time(env, command_name: str, vel_threshold: float, sensor_cfg: Scen
 def stand_still(
     env: ManagerBasedRLEnv,
     command_name: str,
-    joint_pos_weight: float = 0.45,
+    joint_pos_weight: float = 0.6,
     joint_vel_weight: float = 0.05,
-    body_vel_weight: float = 0.5,
+    body_vel_weight: float = 0.35,
 ) -> torch.Tensor:
     """Penalize joint position error from default on the articulation."""
     # extract the used quantities (to enable type-hinting)
@@ -169,6 +169,41 @@ def feet_close_xy_gauss(
     # Return continuous penalty using exponential decay
     return torch.exp(-torch.clamp(threshold - feet_distance_y, min=0.0) / std**2) - 1
 
+
+def sound_suppression_acc_per_foot(
+    env: ManagerBasedRLEnv,
+    sensor_cfg: SceneEntityCfg,
+    command_name: str = "base_velocity",
+) -> torch.Tensor:
+    """
+    Compute per-foot acceleration penalty for sound suppression.
+
+    Penalize large vertical (z) accelerations when a foot is in contact with the ground.
+    """
+
+    asset = env.scene["robot"]
+
+    # shape: (Nenv, Nbody, 6)
+    body_acc = asset.data.body_acc_w
+
+    # shape: (Nenv, Nfeet)
+    foot_acc_z = body_acc[:, sensor_cfg.body_ids, 2]
+
+    contact_sensor = env.scene.sensors[sensor_cfg.name]
+    contact_force_z = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2]
+    in_contact = torch.abs(contact_force_z) > 1.0  # (Nenv, Nfeet)
+
+    acc_penalty = (foot_acc_z ** 2) * in_contact.float()
+    acc_penalty = torch.clamp(acc_penalty, max=50.0)
+
+    penalty = acc_penalty.sum(dim=1)
+    reward = penalty
+
+    cmd = env.command_manager.get_command(command_name)
+    cmd_speed = torch.norm(cmd[:, :2], dim=1)
+    reward = reward * (cmd_speed < 1.5).float()
+
+    return reward
 
 def heading_error(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
     """Compute the heading error between the robot's current heading and the goal heading."""
@@ -305,49 +340,6 @@ def volume_points_penetration(
     points_vel_norm = torch.norm(points_vel, dim=-1)  # (N, B_*P_)
     velocity_times_penetration = in_obstacle * (points_vel_norm + 1e-6) * penetration_depth  # (N, B_*P_)
 
-    return torch.sum(velocity_times_penetration, dim=-1)
-
-
-def volume_points_penetration_center_weighted(
-    env: ManagerBasedRLEnv,
-    sensor_cfg: SceneEntityCfg,
-    points_grid_cfg: Grid3dPointsGeneratorCfg,
-    tolerance: float = 0.0,
-) -> torch.Tensor:
-    """Penalize penetration; in-obstacle contribution is weighted higher near the grid box center (body frame)."""
-    volume_sensor: VolumePoints = env.scene.sensors[sensor_cfg.name]
-    penetration = volume_sensor.data.penetration_offset  # (N, B_, P_, 3)
-    n_env, n_b, n_p = penetration.shape[:3]
-
-    pts_b = grid3d_points_generator(points_grid_cfg).to(device=penetration.device, dtype=penetration.dtype)
-    c = torch.tensor(
-        [
-            (points_grid_cfg.x_min + points_grid_cfg.x_max) * 0.5,
-            (points_grid_cfg.y_min + points_grid_cfg.y_max) * 0.5,
-            (points_grid_cfg.z_min + points_grid_cfg.z_max) * 0.5,
-        ],
-        device=penetration.device,
-        dtype=penetration.dtype,
-    )
-    h = torch.tensor(
-        [
-            (points_grid_cfg.x_max - points_grid_cfg.x_min) * 0.5,
-            (points_grid_cfg.y_max - points_grid_cfg.y_min) * 0.5,
-            (points_grid_cfg.z_max - points_grid_cfg.z_min) * 0.5,
-        ],
-        device=penetration.device,
-        dtype=penetration.dtype,
-    )
-    r = ((pts_b - c).abs() / h).max(dim=-1).values
-    w_center = (1.0 - r).clamp(min=0.0).view(1, 1, n_p).expand(n_env, n_b, n_p).flatten(1, 2)
-
-    penetration = penetration.flatten(1, 2)  # (N, B_*P_, 3)
-    penetration_depth = torch.norm(penetration, dim=-1)  # (N, B_*P_)
-    in_obstacle = (penetration_depth > tolerance).float()  # (N, B_*P_)
-    points_vel = volume_sensor.data.points_vel_w  # (N, B_, P_, 3)
-    points_vel = points_vel.flatten(1, 2)  # (N, B_*P_, 3)
-    points_vel_norm = torch.norm(points_vel, dim=-1)  # (N, B_*P_)
-    velocity_times_penetration = in_obstacle * w_center * (points_vel_norm + 1e-6) * penetration_depth
     return torch.sum(velocity_times_penetration, dim=-1)
 
 
