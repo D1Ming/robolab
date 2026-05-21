@@ -4,9 +4,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# Parkour play script: AMP + EncoderMoEActorCritic, with optional ONNX export aligned with
-# instinctlab/tasks/parkour/scripts/play.py (separate depth encoder + actor graphs).
-
 """Script to play parkour checkpoints (RSL-RL, AMP). ONNX export uses real observations."""
 
 import argparse

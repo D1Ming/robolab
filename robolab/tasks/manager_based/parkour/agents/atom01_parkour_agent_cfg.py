@@ -10,8 +10,6 @@ from robolab.tasks.manager_based.parkour.mdp.symmetry import atom01
 
 @configclass
 class RslRlPpoEncoderMoEActorCriticCfg:
-    """MoE trunk; sizes align with instinctlab atom01 MoEPolicyCfg (instinct_rl_amp_cfg)."""
-
     class_name: str = "EncoderMoEActorCritic"
     init_noise_std: float = 1.0
     num_moe_experts: int = 10
@@ -33,7 +31,6 @@ class RslRlPpoEncoderMoEActorCriticCfg:
         "nonlinearity": "ReLU",
         "use_maxpool": True,
     }
-    # ONNX export: match instinct_onboard / instinctlab onnxer (`0-depth_encoder.onnx`).
     encoder_onnx_stems: dict[str, str] = {"depth_image": "depth_encoder"}
     encoder_onnx_sequential_idx: int = 0
 

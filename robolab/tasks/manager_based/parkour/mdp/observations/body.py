@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Sequence
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 
-import instinctlab.utils.math as instinct_math
+import robolab.utils.math as math_utils
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -70,7 +70,7 @@ def root_tannorm_w(
     """
     asset: Articulation = env.scene[asset_cfg.name]
     root_quat_w = asset.data.root_link_quat_w
-    root_tannorm = instinct_math.quat_to_tan_norm(root_quat_w)
+    root_tannorm = math_utils.quat_to_tan_norm(root_quat_w)
     return root_tannorm
 
 
@@ -131,5 +131,5 @@ def link_tannorm_b(
         )
     else:
         link_quat = link_quat_w
-    link_tannorm = instinct_math.quat_to_tan_norm(link_quat)
+    link_tannorm = math_utils.quat_to_tan_norm(link_quat)
     return link_tannorm
