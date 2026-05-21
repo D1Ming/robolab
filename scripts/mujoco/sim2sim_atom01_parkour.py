@@ -180,9 +180,9 @@ class cmd:
     _pressed: ClassVar[set[str]] = set()
 
     # Magnitude while the corresponding key is held (opposing keys cancel).
-    hold_vx = 1.0
+    hold_vx = 0.4
     hold_vy = 0.0
-    hold_dyaw = 1.5
+    hold_dyaw = 1.0
 
     # Max |d(command)/dt| when moving toward keyboard target (linear ramp; units/s).
     ramp_vx_per_s = 2.0
@@ -1083,7 +1083,7 @@ def run_mujoco_onnx(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Atom01 parkour sim2sim (depth_encoder.onnx + actor.onnx).")
     default_export = (
-        "/home/amdin/zym/instinct_train/logs/rsl_rl/atom01_parkour/2026-05-20_11-22-41/exported"
+        "/home/amdin/zym/instinct_train/logs/rsl_rl/atom01_parkour/2026-05-21_00-37-00/exported"
     )
     parser.add_argument(
         "--depth_encoder",
