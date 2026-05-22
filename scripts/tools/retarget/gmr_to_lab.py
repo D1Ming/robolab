@@ -131,7 +131,10 @@ def extract_gmr_data(
             raise ValueError(f"DOF name '{lab_dof}' not found in GMR DOF names.")
 
     dof_pos_lab = dof_pos[:, gmr_to_lab_indices]
-    
+    for i, lab_dof in enumerate(lab_dof_names):
+        if lab_dof.endswith("_elbow_yaw_joint"):
+            dof_pos_lab[:, i] = 0.0
+
     output_data = {
         'fps': fps,
         'root_pos': root_pos[start_frame:end_frame],

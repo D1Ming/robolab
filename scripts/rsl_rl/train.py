@@ -39,6 +39,7 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import os
 import sys
 
 from isaaclab.app import AppLauncher
@@ -59,7 +60,10 @@ parser.add_argument(
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument(
-    "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
+    "--distributed",
+    action="store_true",
+    default=False,
+    help="Run training with multiple GPUs or nodes. Auto-enabled when launched via torchrun (WORLD_SIZE > 1).",
 )
 parser.add_argument("--export_io_descriptors", action="store_true", default=False, help="Export IO descriptors.")
 # append RSL-RL cli arguments
@@ -67,6 +71,10 @@ cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
+
+# auto-enable distributed training when launched with torchrun / torch.distributed.run
+if int(os.getenv("WORLD_SIZE", "1")) > 1:
+    args_cli.distributed = True
 
 # always enable cameras to record video
 if args_cli.video:
@@ -104,7 +112,6 @@ if version.parse(installed_version) < version.parse(RSL_RL_VERSION):
 """Rest everything follows."""
 
 import logging
-import os
 import time
 from datetime import datetime
 
@@ -186,12 +193,31 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs: {time-stamp}_{run_name}
-    log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    # The Ray Tune workflow extracts experiment name using the logging line below, hence, do not change it (see PR #2346, comment-2819298849)
-    print(f"Exact experiment name requested from command line: {log_dir}")
-    if agent_cfg.run_name:
-        log_dir += f"_{agent_cfg.run_name}"
-    log_dir = os.path.join(log_root_path, log_dir)
+    if args_cli.distributed:
+        os.makedirs(log_root_path, exist_ok=True)
+        sync_file = os.path.join(log_root_path, ".latest_log_dir")
+        if app_launcher.global_rank == 0:
+            log_run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            if agent_cfg.run_name:
+                log_run_name += f"_{agent_cfg.run_name}"
+            # The Ray Tune workflow extracts experiment name using the logging line below, hence, do not change it (see PR #2346, comment-2819298849)
+            print(f"Exact experiment name requested from command line: {log_run_name}")
+            with open(sync_file, "w") as f:
+                f.write(log_run_name)
+        else:
+            while not os.path.exists(sync_file):
+                time.sleep(0.05)
+            with open(sync_file) as f:
+                log_run_name = f.read().strip()
+        log_dir = os.path.join(log_root_path, log_run_name)
+        os.makedirs(log_dir, exist_ok=True)
+    else:
+        log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        # The Ray Tune workflow extracts experiment name using the logging line below, hence, do not change it (see PR #2346, comment-2819298849)
+        print(f"Exact experiment name requested from command line: {log_dir}")
+        if agent_cfg.run_name:
+            log_dir += f"_{agent_cfg.run_name}"
+        log_dir = os.path.join(log_root_path, log_dir)
 
     # set the IO descriptors output directory if requested
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
@@ -247,9 +273,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # load previously trained model
         runner.load(resume_path, map_location=agent_cfg.device)
 
-    # dump the configuration into log-directory
-    dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
-    dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
+    # dump the configuration into log-directory (rank 0 only in distributed mode)
+    if not args_cli.distributed or app_launcher.global_rank == 0:
+        dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
+        dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
     # run training
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)

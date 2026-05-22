@@ -116,7 +116,7 @@ else:
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
 try:
-    from .gmr_to_lab import LoopMode, extract_gmr_data, run_simulator, ReplayMotionsSceneCfg
+    from gmr_to_lab import LoopMode, extract_gmr_data, run_simulator, ReplayMotionsSceneCfg
 except ImportError as e:
     print(f"Error importing from gmr_to_lab.py: {e}")
     raise
