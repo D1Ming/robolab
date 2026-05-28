@@ -4,7 +4,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# MuJoCo sim2sim for Atom01 parkour policies exported as separate ONNX graphs
+# MuJoCo sim2sim for RPO parkour policies exported as separate ONNX graphs
 # (depth encoder + actor), aligned with parkour_env_cfg observations and
 # delayed_visualizable_image subsampling.
 
@@ -337,7 +337,7 @@ def start_keyboard_listener():
 
 
 def get_obs(data, model):
-    """Articulation observation from MuJoCo (matches sim2sim_atom01_amp pattern)."""
+    """Articulation observation from MuJoCo (matches sim2sim_rpo_amp pattern)."""
     q = data.qpos.astype(np.double)
     dq = data.qvel.astype(np.double)
     quat = data.sensor("orientation").data[[1, 2, 3, 0]].astype(np.double)
@@ -1084,9 +1084,9 @@ def run_mujoco_onnx(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Atom01 parkour sim2sim (depth_encoder.onnx + actor.onnx).")
+    parser = argparse.ArgumentParser(description="RPO parkour sim2sim (depth_encoder.onnx + actor.onnx).")
     default_export = (
-        "robolab/logs/rsl_rl/atom01_parkour/2026-05-21_00-37-00/exported"
+        "robolab/logs/rsl_rl/rpo_parkour/2026-05-21_00-37-00/exported"
     )
     parser.add_argument(
         "--depth_encoder",
@@ -1111,7 +1111,7 @@ if __name__ == "__main__":
         type=str,
         choices=("stairs", "terrain", "plane"),
         default="stairs",
-        help="Scene: stairs=atom01_stairs.xml (pyramids + trapezoid up/platform/down); terrain=atom01_terrain.xml; plane=flat atom01.xml.",
+        help="Scene: stairs=rpo_stairs.xml (pyramids + trapezoid up/platform/down); terrain=rpo_terrain.xml; plane=flat rpo.xml.",
     )
     parser.add_argument(
         "--headless",
@@ -1127,11 +1127,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    mjcf_dir = f"{ISAAC_DATA_DIR}/robots/roboparty/atom01/mjcf"
+    mjcf_dir = f"{ISAAC_DATA_DIR}/robots/roboparty/rpo/mjcf"
     scene_xml = {
-        "stairs": f"{mjcf_dir}/atom01_stairs.xml",
-        "terrain": f"{mjcf_dir}/atom01_terrain.xml",
-        "plane": f"{mjcf_dir}/atom01.xml",
+        "stairs": f"{mjcf_dir}/rpo_stairs.xml",
+        "terrain": f"{mjcf_dir}/rpo_terrain.xml",
+        "plane": f"{mjcf_dir}/rpo.xml",
     }
     if args.mujoco_xml:
         xml_path = args.mujoco_xml

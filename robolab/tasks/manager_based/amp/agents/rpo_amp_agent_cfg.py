@@ -38,7 +38,7 @@ from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoActorCriticRecurrentCfg, RslRlPpoAlgorithmCfg, RslRlSymmetryCfg
 from robolab import ROBOLAB_ROOT_DIR
 import torch
-from robolab.tasks.manager_based.amp.mdp.symmetry import atom01
+from robolab.tasks.manager_based.amp.mdp.symmetry import rpo
 
 
 @configclass
@@ -122,8 +122,8 @@ class RslRlOnPolicyRunnerAmpCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000
     save_interval = 100
-    experiment_name = "atom01_amp"
-    wandb_project = "atom01_amp"
+    experiment_name = "rpo_amp"
+    wandb_project = "rpo_amp"
     obs_groups = {
         "policy": ["policy"], 
         "critic": ["critic"], 
@@ -156,7 +156,7 @@ class RslRlOnPolicyRunnerAmpCfg(RslRlOnPolicyRunnerCfg):
             use_data_augmentation=True,
             use_mirror_loss=True,
             mirror_loss_coeff=0.2,
-            data_augmentation_func=atom01.compute_symmetric_states
+            data_augmentation_func=rpo.compute_symmetric_states
         ),
         amp_cfg=RslRlAmpCfg(
             disc_obs_buffer_size=100,

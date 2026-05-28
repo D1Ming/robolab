@@ -34,7 +34,7 @@ from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
 from isaaclab.utils import configclass
 
 from robolab.tasks.direct.base import mdp
-from robolab.assets.robots import ATOM01_CFG
+from robolab.assets.robots import RPO_CFG
 from robolab.tasks.direct.base import (  # noqa:F401
     BaseAgentCfg, 
     BaseEnvCfg, 
@@ -57,7 +57,7 @@ from robolab.tasks.direct.base import (  # noqa:F401
 
 
 @configclass
-class ATOM01RewardCfg(RewardCfg):
+class RPORewardCfg(RewardCfg):
     track_lin_vel_xy_exp = RewTerm(func=mdp.track_lin_vel_xy_yaw_frame_exp, weight=1.0, params={"std": 0.5})
     track_ang_vel_z_exp = RewTerm(func=mdp.track_ang_vel_z_world_exp, weight=1.0, params={"std": 0.5})
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-0.2)
@@ -171,16 +171,16 @@ class ATOM01RewardCfg(RewardCfg):
 
 
 @configclass
-class ATOM01FlatEnvCfg(BaseEnvCfg):
+class RPOFlatEnvCfg(BaseEnvCfg):
 
-    reward = ATOM01RewardCfg()
+    reward = RPORewardCfg()
 
     def __post_init__(self):
         super().__post_init__()
         self.action_space = 23
         self.observation_space = 78
         self.state_space = 139
-        self.scene_context.robot = ATOM01_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene_context.robot = RPO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene_context.height_scanner.prim_body_name = "base_link"
         self.scene_context.terrain_type = "generator"
         self.scene_context.terrain_generator = GRAVEL_TERRAINS_CFG
@@ -203,7 +203,7 @@ class ATOM01FlatEnvCfg(BaseEnvCfg):
 
 
 @configclass
-class ATOM01RoughEnvCfg(ATOM01FlatEnvCfg):
+class RPORoughEnvCfg(RPOFlatEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.state_space = 326

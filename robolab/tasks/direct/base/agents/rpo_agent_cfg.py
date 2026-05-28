@@ -46,6 +46,16 @@ from robolab.tasks.direct.base import (  # noqa:F401
 )
 
 
+def generate_height_scan_mirror(start_idx=140, rows=11, cols=17):
+    mirror_indices = []
+    for row in range(rows):
+        mirror_row = rows - 1 - row
+        for col in range(cols):
+            mirror_idx = start_idx + col + mirror_row * cols
+            mirror_indices.append(mirror_idx)
+    mirror_signs = [1] * (rows * cols)
+    return mirror_indices, mirror_signs
+
 def generate_joint_mirror(start_idx):
     mirror_indices = []
     mirror_indices.extend([start_idx + 1, start_idx])    
@@ -61,21 +71,21 @@ action_mirror_indices, action_mirror_signs = generate_joint_mirror(55)
 policy_obs_mirror_indices = [0, 1, 2,\
                              3, 4, 5,\
                              6, 7, 8]\
-                            + joint_pos_mirror_indices + joint_vel_mirror_indices + action_mirror_indices\
-                            + [78]
+                            + joint_pos_mirror_indices + joint_vel_mirror_indices + action_mirror_indices
 policy_obs_mirror_signs = [-1, 1, -1,\
                            1, -1, 1,\
-                           1, -1, -1] + joint_pos_mirror_signs + joint_vel_mirror_signs + action_mirror_signs\
-                           + [1]
-joint_acc_mirror_indices, joint_acc_mirror_signs = generate_joint_mirror(94)
-joint_torques_mirror_indices, joint_torques_mirror_signs = generate_joint_mirror(117)
+                           1, -1, -1] + joint_pos_mirror_signs + joint_vel_mirror_signs + action_mirror_signs
+joint_acc_mirror_indices, joint_acc_mirror_signs = generate_joint_mirror(93)
+joint_torques_mirror_indices, joint_torques_mirror_signs = generate_joint_mirror(116)
 critic_obs_mirror_indices = policy_obs_mirror_indices +\
-                            [79, 80, 81,\
-                             83, 82,\
-                             87, 88, 89, 84, 85, 86,\
-                             91, 90,\
-                             93, 92]\
+                            [78, 79, 80,\
+                             82, 81,\
+                             86, 87, 88, 83, 84, 85,\
+                             90, 89,\
+                             92, 91]\
                             + joint_acc_mirror_indices + joint_torques_mirror_indices
+height_scan_mirror_indices, height_scan_mirror_signs = generate_height_scan_mirror(139, 11, 17)
+critic_obs_mirror_indices += height_scan_mirror_indices
 critic_obs_mirror_signs = policy_obs_mirror_signs +\
                            [1, -1, 1,\
                             1, 1,\
@@ -83,18 +93,19 @@ critic_obs_mirror_signs = policy_obs_mirror_signs +\
                             1, 1,\
                             1, 1]\
                             + joint_acc_mirror_signs + joint_torques_mirror_signs
+critic_obs_mirror_signs += height_scan_mirror_signs
 act_mirror_indices = [1, 0, 2, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 18, 17, 20, 19, 22, 21]
 act_mirror_signs = [-1, -1, -1, -1, -1, 1, 1, 1, 1, -1, -1, 1, 1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1]
 policy_obs_mirror_indices_expanded = []
 for i in range(10):
-    offset = i * 79
+    offset = i * 78
     for idx in policy_obs_mirror_indices:
         policy_obs_mirror_indices_expanded.append(idx + offset)
 policy_obs_mirror_signs_expanded = policy_obs_mirror_signs * 10
 
 critic_obs_mirror_indices_expanded = []
 for i in range(10):
-    offset = i * 140
+    offset = i * 326
     for idx in critic_obs_mirror_indices:
         critic_obs_mirror_indices_expanded.append(idx + offset)
 critic_obs_mirror_signs_expanded = critic_obs_mirror_signs * 10
@@ -146,17 +157,44 @@ def data_augmentation_func(env, obs, actions):
 
 
 @configclass
-class ATOM01InterruptAgentCfg(BaseAgentCfg):
+class RPOFlatAgentCfg(BaseAgentCfg):
     def __post_init__(self):
         super().__post_init__()
-        self.experiment_name: str = "atom01_interrupt"
-        self.wandb_project: str = "atom01_interrupt"
+        self.experiment_name: str = "rpo_flat"
+        self.wandb_project: str = "rpo_flat"
         self.seed = 42
         self.num_steps_per_env = 24
         self.max_iterations = 9001
         self.save_interval = 1000
         self.actor_obs_normalization: True
         self.critic_obs_normalization: True
+        self.algorithm = RslRlPpoAlgorithmCfg(
+            class_name="PPO",
+            value_loss_coef=1.0,
+            use_clipped_value_loss=True,
+            clip_param=0.2,
+            entropy_coef=0.005,
+            num_learning_epochs=5,
+            num_mini_batches=4,
+            learning_rate=1.0e-3,
+            schedule="adaptive",
+            gamma=0.99,
+            lam=0.95,
+            desired_kl=0.01,
+            max_grad_norm=1.0,
+            normalize_advantage_per_mini_batch=False,
+            symmetry_cfg=None,
+            rnd_cfg=None,  # RslRlRndCfg()
+        )
+        self.clip_actions = 100.0
+
+
+@configclass
+class RPORoughAgentCfg(RPOFlatAgentCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.experiment_name: str = "rpo_rough"
+        self.wandb_project: str = "rpo_rough"
         self.algorithm = RslRlPpoAlgorithmCfg(
             class_name="PPO",
             value_loss_coef=1.0,
@@ -180,4 +218,3 @@ class ATOM01InterruptAgentCfg(BaseAgentCfg):
             ),
             rnd_cfg=None,  # RslRlRndCfg()
         )
-        self.clip_actions = 100.0

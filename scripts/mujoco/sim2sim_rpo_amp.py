@@ -33,16 +33,104 @@ import numpy as np
 import mujoco, mujoco_viewer
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
-from robolab.assets import ISAAC_DATA_DIR
 import torch
-import os
 import cv2
-import matplotlib.pyplot as plt # Import matplotlib
+import matplotlib.pyplot as plt
+from pynput import keyboard
+import time
+from robolab.assets import ISAAC_DATA_DIR
 
 class cmd:
     vx = 0.0
     vy = 0.0
     dyaw = 0.0
+    vx_increment = 0.1
+    vy_increment = 0.1
+    dyaw_increment = 0.1
+
+    min_vx = -1
+    max_vx = 2.5
+    min_vy = -0.8
+    max_vy = 0.8
+    min_dyaw = -1.5
+    max_dyaw = 1.5
+    camera_follow = True
+    reset_requested = False
+    
+    @classmethod
+    def update_vx(cls, delta):
+        """update forward velocity"""
+        cls.vx = np.clip(cls.vx + delta, cls.min_vx, cls.max_vx)
+        print(f"vx: {cls.vx:.2f}, vy: {cls.vy:.2f}, dyaw: {cls.dyaw:.2f}")
+    
+    @classmethod
+    def update_vy(cls, delta):
+        """update lateral velocity"""
+        cls.vy = np.clip(cls.vy + delta, cls.min_vy, cls.max_vy)
+        print(f"vx: {cls.vx:.2f}, vy: {cls.vy:.2f}, dyaw: {cls.dyaw:.2f}")
+    
+    @classmethod
+    def update_dyaw(cls, delta):
+        """update angular velocity"""
+        cls.dyaw = np.clip(cls.dyaw + delta, cls.min_dyaw, cls.max_dyaw)
+        print(f"vx: {cls.vx:.2f}, vy: {cls.vy:.2f}, dyaw: {cls.dyaw:.2f}")
+
+    @classmethod
+    def toggle_camera_follow(cls):
+        cls.camera_follow = not cls.camera_follow
+        print(f"Camera follow: {cls.camera_follow}")
+    
+    @classmethod
+    def reset(cls):
+        """reset all velocities to zero"""
+        cls.vx = 0.0
+        cls.vy = 0.0
+        cls.dyaw = 0.0
+        print(f"Velocities reset: vx: {cls.vx:.2f}, vy: {cls.vy:.2f}, dyaw: {cls.dyaw:.2f}")
+def on_press(key):
+    """Key press event handler"""
+    try:
+        # Number key controls: 8/5 control forward/backward (vx), 4/6 control left/right (vy), 7/9 control left/right turn (dyaw)
+        if hasattr(key, 'char') and key.char is not None:
+            c = key.char.lower()
+            if c == '8':
+                # 8 -> forward (increase vx)
+                cmd.update_vx(cmd.vx_increment)
+            elif c == '2':
+                # 2 -> backward (decrease vx)
+                cmd.update_vx(-cmd.vx_increment)
+            elif c == '4':
+                # 4 -> left (decrease vy)
+                cmd.update_vy(cmd.vy_increment)
+            elif c == '6':
+                # 6 -> right (increase vy)
+                cmd.update_vy(-cmd.vy_increment)
+            elif c == '7':
+                # 7 -> turn left (increase dyaw)
+                cmd.update_dyaw(cmd.dyaw_increment)
+            elif c == '9':
+                # 9 -> turn right (decrease dyaw)
+                cmd.update_dyaw(-cmd.dyaw_increment)
+            elif c == 'f':
+                # toggle camera follow
+                cmd.toggle_camera_follow()
+            elif c == '0':
+                # request reset robot state in main loop (thread-safe flag)
+                cmd.reset_requested = True
+                print('Reset requested (0 key pressed)')
+    except AttributeError:
+        pass
+
+def on_release(key):
+    """Key release event handler"""
+    # If movement should only occur while keys are held down, handle it here
+    pass
+
+def start_keyboard_listener():
+    """Start keyboard listener"""
+    listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+    listener.start()
+    return listener
 
 def get_obs(data):
     '''Extracts an observation from the mujoco data structure
@@ -73,30 +161,45 @@ def run_mujoco(policy, cfg, headless=False):
     Returns:
         None
     """
+    # Start keyboard listener
+    print("=" * 60)
+    print("Keyboard control instructions:")
+    print("  ↑ Up arrow: Increase forward speed (vx)")
+    print("  ↓ Down arrow: Decrease forward speed (vx)")
+    print("  ← Left arrow: Increase left turn rate (dyaw)")
+    print("  → Right arrow: Increase right turn rate (dyaw)")
+    print("  0 key: Reset all speeds to 0")
+    print("  F key: Toggle camera follow mode")
+    print("=" * 60)
+    keyboard_listener = start_keyboard_listener()
+    
     model = mujoco.MjModel.from_xml_path(cfg.sim_config.mujoco_model_path)
     model.opt.timestep = cfg.sim_config.dt
     data = mujoco.MjData(model)
     data.qpos[-cfg.robot_config.num_actions:] = cfg.robot_config.default_pos
     mujoco.mj_step(model, data)
+
+   
+    initial_qpos = data.qpos.copy()
+    initial_qvel = data.qvel.copy()
     
-    os.environ['__GLX_VENDOR_LIBRARY_NAME'] = 'nvidia'
-    os.environ['MUJOCO_GL'] = 'glfw'
-    # 根据 headless 参数选择渲染模式
+
+    
     if headless:
         renderer = mujoco.Renderer(model, width=1920, height=1080)
-        # 设置视频写入器
+        
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        # 创建并配置相机
+     
         cam = mujoco.MjvCamera()
-        cam.distance = 4.0      # 增加距离以获得更好的视角
-        cam.azimuth = 45.0     # 水平旋转角度
-        cam.elevation = -20.0   # 垂直俯仰角度
-        cam.lookat = [0, 0, 1]  # 观察点位置
+        cam.distance = 4.0      
+        cam.azimuth = 45.0   
+        cam.elevation = -20.0   
+        cam.lookat = [0, 0, 1]  
         out = cv2.VideoWriter('simulation.mp4', fourcc, 1.0/cfg.sim_config.dt/cfg.sim_config.decimation, (1920, 1080))
     else:
         mode = 'window'
         viewer = mujoco_viewer.MujocoViewer(model, data, mode=mode, width=1920, height=1080)
-        # 设置窗口模式下的相机参数
+        
         viewer.cam.distance = 4.0
         viewer.cam.azimuth = 45.0
         viewer.cam.elevation = -20.0
@@ -106,7 +209,7 @@ def run_mujoco(policy, cfg, headless=False):
     target_pos = np.zeros((cfg.robot_config.num_actions), dtype=np.double)
     action = np.zeros((cfg.robot_config.num_actions), dtype=np.double)
 
-    hist_obs = np.zeros((cfg.robot_config.frame_stack, cfg.robot_config.num_single_obs), dtype=np.double)
+    hist_obs = np.zeros((cfg.robot_config.frame_stack, cfg.robot_config.num_observations), dtype=np.double)
     hist_obs.fill(0.0)
 
     count_lowlevel = 0
@@ -124,7 +227,20 @@ def run_mujoco(policy, cfg, headless=False):
     actual_ang_vel_data = [] # Store [wz] at low freq
     # -------------------------------------------------------------
     is_first_frame = True
+    
+    start_time = time.time()
+    
     for step in tqdm(range(int(cfg.sim_config.sim_duration / cfg.sim_config.dt)), desc="Simulating..."):
+
+        if cmd.reset_requested:
+            print('Performing reset: restoring qpos/qvel and zeroing commands')
+            data.qpos[:] = initial_qpos
+            data.qvel[:] = initial_qvel
+            # clear commands and history
+            cmd.reset()
+            data.ctrl[:] = 0.0
+            mujoco.mj_forward(model, data)
+            cmd.reset_requested = False
 
         # Obtain an observation
         q, dq, quat, v, omega, gvec = get_obs(data)
@@ -140,7 +256,7 @@ def run_mujoco(policy, cfg, headless=False):
                 q_obs[i] = q_[cfg.robot_config.usd2urdf[i]]
                 dq_obs[i] = dq[cfg.robot_config.usd2urdf[i]]
 
-            obs = np.zeros([1, cfg.robot_config.num_single_obs], dtype=np.float32)
+            obs = np.zeros([1, cfg.robot_config.num_observations], dtype=np.float32)
             
             obs[0, 0:3] = omega
             obs[0, 3:6] = gvec
@@ -150,6 +266,9 @@ def run_mujoco(policy, cfg, headless=False):
             obs[0, 9:32] = q_obs
             obs[0, 32:55] = dq_obs
             obs[0, 55:78] = action
+            # print("action:", action)
+            print("current command: lin vel x={:.2f}, lin vel y={:.2f}, ang vel z={:.2f}".format(cmd.vx, cmd.vy, cmd.dyaw))  
+            print("current velocity: lin vel x={:.2f}, lin vel y={:.2f}, ang vel z={:.2f}".format(v[0], v[1], omega[2]))
 
             if is_first_frame:
                 hist_obs = np.tile(obs, (cfg.robot_config.frame_stack, 1))
@@ -188,9 +307,15 @@ def run_mujoco(policy, cfg, headless=False):
 
             if headless:
                 renderer.update_scene(data, camera=cam)
-                img = renderer.render()  # 直接获取RGB图像
+                if cmd.camera_follow:
+                    base_pos = data.qpos[0:3].tolist()
+                    cam.lookat = [float(base_pos[0]), float(base_pos[1]), float(base_pos[2])]
+                img = renderer.render() 
                 out.write(img)
             else:
+                if cmd.camera_follow:
+                    base_pos = data.qpos[0:3].tolist()
+                    viewer.cam.lookat = [float(base_pos[0]), float(base_pos[1]), float(base_pos[2])]
                 viewer.render()
             
         target_vel = np.zeros((cfg.robot_config.num_actions), dtype=np.double)
@@ -202,11 +327,20 @@ def run_mujoco(policy, cfg, headless=False):
         mujoco.mj_step(model, data)
 
         count_lowlevel += 1
+        
+        # After each simulation step, calculate the elapsed real time and add delay to match simulation time
+        elapsed_real_time = time.time() - start_time
+        target_sim_time = (step + 1) * cfg.sim_config.dt
+        if elapsed_real_time < target_sim_time:
+            time.sleep(target_sim_time - elapsed_real_time)
 
     if headless:
         out.release()
     else:
         viewer.close()
+    
+    # Stop keyboard listener
+    keyboard_listener.stop()
 
      # --- Plotting Section (Using only low-frequency data) ---
 
@@ -299,31 +433,31 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(description='Deployment script.')
-    parser.add_argument('--load_model', type=str, help='Run to load from.')
-    parser.add_argument('--terrain', action='store_true', help='terrain or plane')
-    parser.add_argument('--headless', action='store_true',
-                      help='Run without GUI and save video')
+    parser.add_argument('--load_model', 
+                        # type=str, 
+                        default="/home/msi/桌面/rpo_train/logs/rsl_rl/rpo_amp/2026-03-03_11-44-01/exported/policy.pt",
+                        help='Run to load from.')
+    parser.add_argument('--terrain', action='store_true', default='plane', help='terrain or plane')
+    parser.add_argument('--headless', action='store_true', help='Run without GUI and save video')
     args = parser.parse_args()
 
     class Sim2simCfg():
 
         class sim_config:
             if args.terrain:
-                mujoco_model_path = f'{ISAAC_DATA_DIR}/robots/roboparty/atom01/mjcf/atom01_terrain.xml'
-            else:
-                mujoco_model_path = f'{ISAAC_DATA_DIR}/robots/roboparty/atom01/mjcf/atom01.xml'
-            sim_duration = 10.0
-            dt = 0.001
-            decimation = 20
+                mujoco_model_path = f'{ISAAC_DATA_DIR}/robots/roboparty/rpo/mjcf/rpo.xml'
+            sim_duration = 1000000.0
+            dt = 0.005
+            decimation = 4
 
         class robot_config:
             kps = np.array([100, 100, 100, 150, 40, 40, 100, 100, 100, 150, 40, 40, 150, 40, 40, 40, 30, 20, 40, 40, 40, 30, 20], dtype=np.double)
             kds = np.array([3.3, 3.3, 3.3, 5.0, 2.0, 2.0, 3.3, 3.3, 3.3, 5.0, 2.0, 2.0, 5.0, 2.0, 2.0, 2.0, 1.5, 1.0, 2.0, 2.0, 2.0, 1.5, 1.0], dtype=np.double)
             default_pos = np.array([0, 0, -0.1, 0.3, -0.2, 0, 0, 0, -0.1, 0.3, -0.2, 0, 0, 0.18, 0.06, 0, 0.78, 0, 0.18, -0.06, 0, 0.78, 0], dtype=np.double)
             tau_limit = 200. * np.ones(23, dtype=np.double)
-            frame_stack = 10
+            frame_stack = 1
             num_single_obs = 78
-            num_observations = 780
+            num_observations = 78 * frame_stack
             num_actions = 23
             action_scale = 0.25
             # 'left_thigh_yaw_joint', 'right_thigh_yaw_joint', 'torso_joint', 'left_thigh_roll_joint', 'right_thigh_roll_joint', 'left_arm_pitch_joint', 'right_arm_pitch_joint', 'left_thigh_pitch_joint', 'right_thigh_pitch_joint', 'left_arm_roll_joint', 'right_arm_roll_joint', 'left_knee_joint', 'right_knee_joint', 'left_arm_yaw_joint', 'right_arm_yaw_joint', 'left_ankle_pitch_joint', 'right_ankle_pitch_joint', 'left_elbow_pitch_joint', 'right_elbow_pitch_joint', 'left_ankle_roll_joint', 'right_ankle_roll_joint', 'left_elbow_yaw_joint', 'right_elbow_yaw_joint'

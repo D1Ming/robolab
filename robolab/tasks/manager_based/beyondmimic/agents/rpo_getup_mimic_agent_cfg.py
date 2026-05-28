@@ -40,12 +40,12 @@ from isaaclab_rl.rsl_rl import (
 
 
 @configclass
-class Atom01BeyondMimicPPORunnerCfg(RslRlOnPolicyRunnerCfg):
+class RPOGetupMimicPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 15000
+    max_iterations = 30000
     save_interval = 200
-    experiment_name = "atom01_beyondmimic"
-    wandb_project = "atom01_beyondmimic"
+    experiment_name = "rpo_getup_mimic"
+    wandb_project = "rpo_getup_mimic"
     policy = RslRlPpoActorCriticCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],

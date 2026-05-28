@@ -4,11 +4,11 @@ import os
 from isaaclab.utils import configclass
 
 from robolab import ROBOLAB_ROOT_DIR
-from robolab.assets.robots.roboparty import ATOM01_CFG, ATOM01_LINKS
+from robolab.assets.robots.roboparty import RPO_CFG, RPO_LINKS
 from robolab.sensors import get_link_prim_targets
 from robolab.tasks.manager_based.parkour.parkour_env_cfg import ROUGH_TERRAINS_CFG, ParkourEnvCfg
 
-ATOM01_CFG.init_state.pos = (0.0, 0.0, 0.85)
+RPO_CFG.init_state.pos = (0.0, 0.0, 0.85)
 AMP_NUM_STEPS = 3
 
 
@@ -18,16 +18,16 @@ for sub_terrain_name, sub_terrain_cfg in ROUGH_TERRAINS_CFG_PLAY.sub_terrains.it
 
 
 @configclass
-class Atom01ParkourRoughEnvCfg(ParkourEnvCfg):
+class RPOParkourRoughEnvCfg(ParkourEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
         # Scene
         self.scene.terrain.terrain_generator = ROUGH_TERRAINS_CFG
-        self.scene.robot = ATOM01_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.camera.mesh_prim_paths.extend(get_link_prim_targets(ATOM01_LINKS))
+        self.scene.robot = RPO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.camera.mesh_prim_paths.extend(get_link_prim_targets(RPO_LINKS))
         self.motion_data.motion_dataset.motion_data_dir = os.path.join(
-            ROBOLAB_ROOT_DIR, "data", "motions", "atom01_lab"
+            ROBOLAB_ROOT_DIR, "data", "motions", "rpo_lab"
         )
         self.motion_data.motion_dataset.motion_data_weights = {
             "36_01": 1,
@@ -49,7 +49,7 @@ class Atom01ParkourRoughEnvCfg(ParkourEnvCfg):
 
 class ShoeConfigMixin:
     def apply_shoe_config(self):
-        self.scene.robot = ATOM01_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = RPO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.leg_volume_points.points_generator.z_min = -0.063
         self.scene.leg_volume_points.points_generator.z_max = -0.023
         self.rewards.rewards.feet_at_plane.params["height_offset"] = 0.058
@@ -57,7 +57,7 @@ class ShoeConfigMixin:
 
 
 @configclass
-class Atom01ParkourRoughEnvCfg_PLAY(Atom01ParkourRoughEnvCfg):
+class RPOParkourRoughEnvCfg_PLAY(RPOParkourRoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
@@ -94,14 +94,14 @@ class Atom01ParkourRoughEnvCfg_PLAY(Atom01ParkourRoughEnvCfg):
 
 
 @configclass
-class Atom01ParkourEnvCfg(Atom01ParkourRoughEnvCfg, ShoeConfigMixin):
+class RPOParkourEnvCfg(RPOParkourRoughEnvCfg, ShoeConfigMixin):
     def __post_init__(self):
         super().__post_init__()
         self.apply_shoe_config()
 
 
 @configclass
-class Atom01ParkourEnvCfg_PLAY(Atom01ParkourRoughEnvCfg_PLAY, ShoeConfigMixin):
+class RPOParkourEnvCfg_PLAY(RPOParkourRoughEnvCfg_PLAY, ShoeConfigMixin):
     def __post_init__(self):
         super().__post_init__()
         self.apply_shoe_config()

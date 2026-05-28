@@ -107,8 +107,8 @@ parser = argparse.ArgumentParser(description="Visualization of retargeted data."
 parser.add_argument(
     "--robot", 
     type=str,
-    default="atom01",
-    choices=["atom01"],
+    default="rpo",
+    choices=["rpo"],
     help="The robot name to be used.",
 )
 parser.add_argument(
@@ -126,7 +126,7 @@ parser.add_argument(
 parser.add_argument(
     "--config_file",
     type=str,
-    default="scripts/tools/config/atom01.yaml",
+    default="scripts/tools/config/rpo.yaml",
     help="Path to YAML config containing gmr_dof_names, lab_dof_names",
 )
 parser.add_argument(
@@ -174,8 +174,8 @@ from isaaclab.scene import InteractiveScene
 ##
 # Pre-defined configs
 ##
-if args_cli.robot == "atom01":
-    from robolab.assets.robots.roboparty import ATOM01_CFG as ROBOT_CFG
+if args_cli.robot == "rpo":
+    from robolab.assets.robots.roboparty import RPO_CFG as ROBOT_CFG
 else:
     raise ValueError(f"Robot {args_cli.robot} not supported.")
 

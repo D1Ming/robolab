@@ -36,9 +36,9 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 from robolab.assets import ISAAC_DATA_DIR
 
-ATOM01_CFG = ArticulationCfg(
+RPO_CFG = ArticulationCfg(
     spawn=sim_utils.UrdfFileCfg(
-        asset_path=f"{ISAAC_DATA_DIR}/robots/roboparty/atom01/urdf/atom01.urdf",
+        asset_path=f"{ISAAC_DATA_DIR}/robots/roboparty/rpo/urdf/rpo.urdf",
         fix_base=False,
         activate_contact_sensors=True,
         replace_cylinders_with_capsules=True,
@@ -155,7 +155,7 @@ ATOM01_CFG = ArticulationCfg(
 )
 
 
-ATOM01_LINKS = [
+RPO_LINKS = [
     "base_link",
     "left_thigh_yaw_link",
     "left_thigh_roll_link",

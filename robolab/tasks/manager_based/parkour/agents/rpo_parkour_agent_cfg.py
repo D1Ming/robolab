@@ -1,11 +1,11 @@
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlSymmetryCfg
 
-from robolab.tasks.manager_based.amp.agents.atom01_amp_agent_cfg import (
+from robolab.tasks.manager_based.amp.agents.rpo_amp_agent_cfg import (
     RslRlAmpCfg,
     RslRlPpoAmpAlgorithmCfg,
 )
-from robolab.tasks.manager_based.parkour.mdp.symmetry import atom01
+from robolab.tasks.manager_based.parkour.mdp.symmetry import rpo
 
 
 @configclass
@@ -36,13 +36,13 @@ class RslRlPpoEncoderMoEActorCriticCfg:
 
 
 @configclass
-class Atom01ParkourAmpRunnerCfg(RslRlOnPolicyRunnerCfg):
+class RPOParkourAmpRunnerCfg(RslRlOnPolicyRunnerCfg):
     class_name = "AMPRunner"
     num_steps_per_env = 24
     max_iterations = 30000
     save_interval = 500
-    experiment_name = "atom01_parkour"
-    wandb_project = "atom01_parkour"
+    experiment_name = "rpo_parkour"
+    wandb_project = "rpo_parkour"
     obs_groups = {
         "policy": ["policy"],
         "critic": ["critic"],
@@ -68,7 +68,7 @@ class Atom01ParkourAmpRunnerCfg(RslRlOnPolicyRunnerCfg):
             use_data_augmentation=True,
             use_mirror_loss=True,
             mirror_loss_coeff=0.15,
-            data_augmentation_func=atom01.compute_symmetric_states
+            data_augmentation_func=rpo.compute_symmetric_states
         ),
         amp_cfg=RslRlAmpCfg(
             disc_obs_buffer_size=100,

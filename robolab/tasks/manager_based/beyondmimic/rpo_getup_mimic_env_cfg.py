@@ -32,57 +32,71 @@
 
 import os
 
-from robolab.assets.robots import ATOM01_CFG
+from robolab.assets.robots import RPO_CFG
 from robolab.tasks.manager_based.beyondmimic.beyondmimic_env_cfg import BeyondMimicEnvCfg
 
 from isaaclab.utils import configclass
 from robolab import ROBOLAB_ROOT_DIR
 
-s_body_name=[
-    'left_thigh_yaw_link', 
-    'right_thigh_yaw_link', 
-    'left_knee_link', 
-    'right_knee_link', 
-    'left_elbow_yaw_link', 
-    'right_elbow_yaw_link',
-    'left_ankle_pitch_link', 
-    'right_ankle_pitch_link',
-]
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import EventTermCfg as EventTerm
+import robolab.tasks.manager_based.beyondmimic.mdp as mdp
+from isaaclab.managers import SceneEntityCfg
+
 
 @configclass
-class Atom01BeyondMimicEnvCfg(BeyondMimicEnvCfg):
+class RPOGetupMimicEnvCfg(BeyondMimicEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.scene.robot = ATOM01_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = RPO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.commands.motion.motion_file = os.path.join(
-            ROBOLAB_ROOT_DIR, "data", "motions", "atom01_bm", "yundong1.npz"
+            ROBOLAB_ROOT_DIR, "data", "motions", "rpo_bm", "getup_supin2prone.npz"
         )
-        self.commands.motion.anchor_body_name = "torso_link"
+        self.commands.motion.anchor_body_name = "base_link"
         self.commands.motion.body_names = [
             'left_thigh_yaw_link', 
             'right_thigh_yaw_link', 
+            "base_link",
             'torso_link', 
             'left_thigh_roll_link', 
             'right_thigh_roll_link', 
-            'left_arm_pitch_link', 
-            'right_arm_pitch_link', 
+            # 'left_arm_pitch_link', 
+            # 'right_arm_pitch_link', 
             'left_thigh_pitch_link', 
             'right_thigh_pitch_link', 
-            'left_arm_roll_link', 
-            'right_arm_roll_link', 
+            # 'left_arm_roll_link', 
+            # 'right_arm_roll_link', 
             'left_knee_link', 
             'right_knee_link', 
             'left_arm_yaw_link', 
             'right_arm_yaw_link', 
-            'left_ankle_pitch_link', 
-            'right_ankle_pitch_link', 
-            'left_elbow_pitch_link', 
-            'right_elbow_pitch_link', 
+            # 'left_ankle_pitch_link', 
+            # 'right_ankle_pitch_link', 
+            # 'left_elbow_pitch_link', 
+            # 'right_elbow_pitch_link', 
             'left_ankle_roll_link', 
             'right_ankle_roll_link', 
             'left_elbow_yaw_link', 
             'right_elbow_yaw_link',
         ]
 
-        self.episode_length_s = 20.0
+        # Disable auto-reset when motion ends - robot will stay at last frame
+        self.commands.motion.reset_on_motion_end = False
+        
+        self.rewards.motion_body_pos.weight = 2.0
+        self.rewards.stand_still_after_motion = RewTerm(
+            func=mdp.stand_still_after_motion,
+            weight=-0.2,
+            params={
+                "command_name": "motion",
+                "pos_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
+                "vel_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
+                "pos_weight": 1.0,
+                "vel_weight": 0.04,
+            },
+        )
+
+        self.events.randomize_push_robot.interval_range_s = (0.0, 5.0)
+
+        self.episode_length_s = 5.0

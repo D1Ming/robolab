@@ -44,7 +44,7 @@ import isaaclab.terrains as terrain_gen
 # Pre-defined configs
 ##
 
-from robolab.assets.robots.roboparty import ATOM01_CFG
+from robolab.assets.robots.roboparty import RPO_CFG
 from robolab import ROBOLAB_ROOT_DIR
 
 KEY_BODY_NAMES = [
@@ -59,7 +59,7 @@ ANIMATION_TERM_NAME = "animation"
 AMP_NUM_STEPS = 3
 
 @configclass
-class Atom01AmpRewards():
+class RPOAmpRewards():
     """Reward terms for the MDP."""
 
     # -- Task
@@ -126,8 +126,8 @@ class Atom01AmpRewards():
 
 
 @configclass
-class Atom01AmpEnvCfg(AmpEnvCfg):
-    rewards: Atom01AmpRewards = Atom01AmpRewards()
+class RPOAmpEnvCfg(AmpEnvCfg):
+    rewards: RPOAmpRewards = RPOAmpRewards()
 
     def __post_init__(self):
         # post init of parent
@@ -136,7 +136,7 @@ class Atom01AmpEnvCfg(AmpEnvCfg):
         # ------------------------------------------------------
         # Scene
         # ------------------------------------------------------
-        self.scene.robot = ATOM01_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = RPO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         
         # plane terrain
         self.scene.terrain.terrain_type = "plane"
@@ -146,7 +146,7 @@ class Atom01AmpEnvCfg(AmpEnvCfg):
         # motion data
         # ------------------------------------------------------
         self.motion_data.motion_dataset.motion_data_dir = os.path.join(
-            ROBOLAB_ROOT_DIR, "data", "motions", "atom01_lab"
+            ROBOLAB_ROOT_DIR, "data", "motions", "rpo_lab"
         )
         self.motion_data.motion_dataset.motion_data_weights={
             
@@ -247,12 +247,12 @@ class Atom01AmpEnvCfg(AmpEnvCfg):
         self.terminations.base_contact.params["sensor_cfg"].body_names = [
             ".*_thigh_.*_link", "base_link", ".*_arm_.*_link", ".*_elbow_.*_link",
         ]
-        if self.__class__.__name__ == "Atom01AmpEnvCfg":
+        if self.__class__.__name__ == "RPOAmpEnvCfg":
             self.disable_zero_weight_rewards()
             
             
 @configclass
-class Atom01AmpEnvCfg_PLAY(Atom01AmpEnvCfg):
+class RPOAmpEnvCfg_PLAY(RPOAmpEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
