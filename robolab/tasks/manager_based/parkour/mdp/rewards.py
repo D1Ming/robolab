@@ -116,6 +116,15 @@ def right_thigh_yaw_joint_sign_l1(
     joint_id = asset.joint_names.index(joint_name)
     return torch.clamp(-asset.data.joint_pos[:, joint_id], min=0.0)
 
+def thigh_yaw_joint_sum(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize right thigh yaw below zero."""
+    asset = env.scene[asset_cfg.name]
+    right_thigh_yaw_joint_index = asset.joint_names.index("right_thigh_yaw_joint")
+    left_thigh_yaw_joint_index = asset.joint_names.index("left_thigh_yaw_joint")
+    return torch.abs(asset.data.joint_pos[:, right_thigh_yaw_joint_index] + asset.data.joint_pos[:, left_thigh_yaw_joint_index])
 
 def body_distance_y(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), min: float = 0.2, max: float = 0.5

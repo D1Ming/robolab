@@ -534,8 +534,9 @@ class ParkourRewardsCfg(MultiRewardCfg):
             ),
         },
     )
-    left_thigh_yaw_joint_sign = RewTerm(func=mdp.left_thigh_yaw_joint_sign_l1, weight=-1.0)
-    right_thigh_yaw_joint_sign = RewTerm(func=mdp.right_thigh_yaw_joint_sign_l1, weight=-1.0)
+    # left_thigh_yaw_joint_sign = RewTerm(func=mdp.left_thigh_yaw_joint_sign_l1, weight=-1.0)
+    # right_thigh_yaw_joint_sign = RewTerm(func=mdp.right_thigh_yaw_joint_sign_l1, weight=-1.0)
+    thigh_yaw_joint=RewTerm(func=mdp.thigh_yaw_joint_sum, weight=-1.0)
     ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.1)
     dof_torques_l2 = RewTerm(
         func=mdp.joint_torques_l2,
