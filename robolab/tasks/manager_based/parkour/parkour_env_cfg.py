@@ -204,7 +204,7 @@ class SceneCfg(InteractiveSceneCfg):
                 saturated_value=2.5,  # saturated = max-range before normalization
             ),
             # --- fixed preprocessing (keep last) ---
-            "crop_and_resize": CropAndResizeCfg(crop_region=(18, 0, 16, 16)),
+            "crop_and_resize": CropAndResizeCfg(crop_region=(0, 0, 16, 16)),
             "gaussian_blur": GaussianBlurNoiseCfg(kernel_size=3, sigma=1),
             "depth_normalization": DepthNormalizationCfg(
                 depth_range=(0.0, 2.5),
@@ -272,7 +272,7 @@ class ObservationsCfg:
             history_length=8,
             flatten_history_dim=True,
         )
-        actions = ObsTerm(func=mdp.last_action, history_length=8, flatten_history_dim=True)
+        actions = ObsTerm(func=mdp.last_action, history_length=8, flatten_history_dim=True, clip=(-10.0, 10.0))
         depth_image = ObsTerm(
             func=mdp.delayed_visualizable_image,
             params={
@@ -314,7 +314,7 @@ class ObservationsCfg:
         )
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, history_length=8, flatten_history_dim=True)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, history_length=8, flatten_history_dim=True)
-        actions = ObsTerm(func=mdp.last_action, history_length=8, flatten_history_dim=True)
+        actions = ObsTerm(func=mdp.last_action, history_length=8, flatten_history_dim=True, clip=(-10.0, 10.0))
         height_scan = ObsTerm(
             func=mdp.height_scan,
             params={"sensor_cfg": SceneEntityCfg("height_scanner")},
@@ -476,16 +476,17 @@ class ParkourRewardsCfg(MultiRewardCfg):
     # Task rewards
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
-        weight=2.0,
+        weight=5.0,
         params={"command_name": "base_velocity", "std": 0.5},
     )
     track_ang_vel_z_exp = RewTerm(
-        func=mdp.track_ang_vel_z_exp, weight=2.0, params={"command_name": "base_velocity", "std": 0.5}
+        func=mdp.track_ang_vel_z_exp, weight=5.0, params={"command_name": "base_velocity", "std": 0.5}
     )
     heading_error = RewTerm(func=mdp.heading_error, weight=-1.0, params={"command_name": "base_velocity"})
     dont_wait = RewTerm(func=mdp.dont_wait, weight=-0.5, params={"command_name": "base_velocity"})
     is_alive = RewTerm(func=mdp.is_alive, weight=3.0)
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-5.0)
+    stand_still = RewTerm(func=mdp.stand_still, weight=-1.0)
     # Regularization rewards
     volume_points_penetration_feet = RewTerm(
         func=mdp.volume_points_penetration_feet,
@@ -526,7 +527,7 @@ class ParkourRewardsCfg(MultiRewardCfg):
     )
     freeze_upper_torso = RewTerm(
         func=mdp.joint_deviation_l1,
-        weight=-0.5,
+        weight=-0.8,
         params={
             "asset_cfg": SceneEntityCfg(
                 "robot", joint_names=["torso_joint"]

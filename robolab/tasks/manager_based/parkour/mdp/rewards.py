@@ -91,30 +91,6 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
     return torch.sum(torch.abs(angle), dim=1)
 
 
-def left_thigh_yaw_joint_sign_l1(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    joint_name: str = "left_thigh_yaw_joint",
-) -> torch.Tensor:
-    """Penalize left thigh yaw above zero."""
-    asset = env.scene[asset_cfg.name]
-    if joint_name not in asset.joint_names:
-        return torch.zeros(asset.data.joint_pos.shape[0], device=asset.data.joint_pos.device)
-    joint_id = asset.joint_names.index(joint_name)
-    return torch.clamp(asset.data.joint_pos[:, joint_id], min=0.0)
-
-
-def right_thigh_yaw_joint_sign_l1(
-    env: ManagerBasedRLEnv,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-    joint_name: str = "right_thigh_yaw_joint",
-) -> torch.Tensor:
-    """Penalize right thigh yaw below zero."""
-    asset = env.scene[asset_cfg.name]
-    if joint_name not in asset.joint_names:
-        return torch.zeros(asset.data.joint_pos.shape[0], device=asset.data.joint_pos.device)
-    joint_id = asset.joint_names.index(joint_name)
-    return torch.clamp(-asset.data.joint_pos[:, joint_id], min=0.0)
 
 def thigh_yaw_joint_sum(
     env: ManagerBasedRLEnv,
