@@ -46,8 +46,8 @@ from robolab.assets import ISAAC_DATA_DIR
 _RAW_DEPTH_H, _RAW_DEPTH_W = 36, 64
 _FOV_X_DEG = 89.51  # nominal horizontal FOV in Isaac cfg (must match aspect × fovy)
 _FOV_Y_DEG = 58.29  # vertical FOV (MuJoCo free camera + frustum)
-_ENCODER_H, _ENCODER_W = 18, 32
-_CROP_REGION = (18, 0, 16, 16)  # on 64×36 grid; Isaac CropAndResizeCfg.crop_region
+_ENCODER_H, _ENCODER_W = 36, 32
+_CROP_REGION = (0, 0, 16, 16)  # on 64×36 grid; Isaac CropAndResizeCfg.crop_region
 _DEPTH_CLIP = (0.0, 2.5)
 # Must match delayed_visualizable_image: sensor_history_length=37, history_skip=5, num_output=8, delay=0.
 _DEPTH_HISTORY_LEN = 37
@@ -1086,7 +1086,7 @@ def run_mujoco_onnx(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RPO parkour sim2sim (depth_encoder.onnx + actor.onnx).")
     default_export = (
-        "robolab/logs/rsl_rl/rpo_parkour/2026-05-21_00-37-00/exported"
+        "exported"
     )
     parser.add_argument(
         "--depth_encoder",
