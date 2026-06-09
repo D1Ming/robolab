@@ -40,6 +40,7 @@ from robolab.tasks.manager_based.parkour.terrain_generator_cfg import ROUGH_TERR
 
 __file_dir__ = os.path.dirname(os.path.realpath(__file__))
 
+# NOTE: KEY_BODY_NAMES must match lab_key_body_names in robolab/scripts/tools/retarget/config/rpo.yaml
 KEY_BODY_NAMES = [
     "left_ankle_roll_link", 
     "right_ankle_roll_link",
@@ -204,7 +205,7 @@ class SceneCfg(InteractiveSceneCfg):
                 saturated_value=2.5,  # saturated = max-range before normalization
             ),
             # --- fixed preprocessing (keep last) ---
-            "crop_and_resize": CropAndResizeCfg(crop_region=(0, 0, 16, 16)),
+            "crop_and_resize": CropAndResizeCfg(crop_region=(18, 0, 16, 16)),
             "gaussian_blur": GaussianBlurNoiseCfg(kernel_size=3, sigma=1),
             "depth_normalization": DepthNormalizationCfg(
                 depth_range=(0.0, 2.5),
@@ -441,11 +442,13 @@ class CommandsCfg:
         velocity_control_stiffness=2.0,
         heading_control_stiffness=2.0,
         rel_standing_envs=0.05,
-        straight_target_prob=0.8, # 10% chance to force the target y to 0 for straight walking.
+        straight_target_prob=0.8, # 80% chance to force the target y to 0 for straight walking.
         ranges=mdp.PoseVelocityCommandCfg.Ranges(lin_vel_x=(0.0, 0.0), lin_vel_y=(0.0, 0.0), ang_vel_z=(-1.0, 1.0)),
         random_velocity_terrain=["perlin_rough_stand"],
         velocity_ranges={
             "perlin_rough": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
+            "perlin_rough_walk": {"lin_vel_x": (0.4, 1.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (0.0, 0.0)},
+            "perlin_rough_trun": {"lin_vel_x": (0.0, 0.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             "perlin_rough_stand": {"lin_vel_x": (0.0, 0.0), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (0.0, 0.0)},
             "square_gaps": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             "pyramid_stairs_32": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
@@ -454,8 +457,6 @@ class CommandsCfg:
             "pyramid_stairs_inv_32": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             "pyramid_stairs_inv_30": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             "pyramid_stairs_inv_28": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
-            "boxes": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
-            "mesh_boxes": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
             "hf_pyramid_slope_inv": {"lin_vel_x": (0.4, 0.8), "lin_vel_y": (0.0, 0.0), "ang_vel_z": (-1.0, 1.0)},
         },
         only_positive_lin_vel_x=True,
@@ -483,6 +484,7 @@ class ParkourRewardsCfg(MultiRewardCfg):
     is_alive = RewTerm(func=mdp.is_alive, weight=3.0)
     lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-5.0)
     stand_still = RewTerm(func=mdp.stand_still, weight=-1.0)
+    rpo_thigh_yaw_joint_sign_penalty = RewTerm(func=mdp.rpo_thigh_yaw_joint_sign_penalty, weight=-10.0)
     # Regularization rewards
     volume_points_penetration_feet = RewTerm(
         func=mdp.volume_points_penetration_feet,
@@ -552,14 +554,14 @@ class ParkourRewardsCfg(MultiRewardCfg):
     pelvis_orientation_l2 = RewTerm(
         func=mdp.link_orientation, weight=-3.0, params={"asset_cfg": SceneEntityCfg("robot", body_names="torso_link")},
     )
-    # feet_flat_ori = RewTerm(
-    #     func=mdp.feet_orientation_contact,
-    #     weight=-0.4,
-    #     params={
-    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
-    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
-    #     },
-    # )
+    feet_flat_ori = RewTerm(
+        func=mdp.feet_orientation_contact,
+        weight=-0.4,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
+        },
+    )
     feet_at_plane = RewTerm(
         func=mdp.feet_at_plane,
         weight=-0.1,

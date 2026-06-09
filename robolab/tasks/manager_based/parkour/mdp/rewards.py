@@ -92,15 +92,17 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
 
 
 
-def thigh_yaw_joint_sum(
+def rpo_thigh_yaw_joint_sign_penalty(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Penalize right thigh yaw below zero."""
+    """Penalize right thigh yaw below zero and left thigh yaw above zero."""
     asset = env.scene[asset_cfg.name]
     right_thigh_yaw_joint_index = asset.joint_names.index("right_thigh_yaw_joint")
     left_thigh_yaw_joint_index = asset.joint_names.index("left_thigh_yaw_joint")
-    return torch.abs(asset.data.joint_pos[:, right_thigh_yaw_joint_index] + asset.data.joint_pos[:, left_thigh_yaw_joint_index])
+    left_thigh_yaw_penalty = torch.where(asset.data.joint_pos[:, left_thigh_yaw_joint_index] > 0.0, asset.data.joint_pos[:, left_thigh_yaw_joint_index], 0.0)
+    right_thigh_yaw_penalty = torch.where(asset.data.joint_pos[:, right_thigh_yaw_joint_index] < 0.0, -asset.data.joint_pos[:, right_thigh_yaw_joint_index], 0.0)
+    return left_thigh_yaw_penalty + right_thigh_yaw_penalty
 
 def body_distance_y(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"), min: float = 0.2, max: float = 0.5

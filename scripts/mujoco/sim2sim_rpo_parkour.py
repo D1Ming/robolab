@@ -46,8 +46,8 @@ from robolab.assets import ISAAC_DATA_DIR
 _RAW_DEPTH_H, _RAW_DEPTH_W = 36, 64
 _FOV_X_DEG = 89.51  # nominal horizontal FOV in Isaac cfg (must match aspect × fovy)
 _FOV_Y_DEG = 58.29  # vertical FOV (MuJoCo free camera + frustum)
-_ENCODER_H, _ENCODER_W = 36, 32
-_CROP_REGION = (0, 0, 16, 16)  # on 64×36 grid; Isaac CropAndResizeCfg.crop_region
+_ENCODER_H, _ENCODER_W = 18, 32
+_CROP_REGION = (18, 0, 16, 16)  # on 64×36 grid; Isaac CropAndResizeCfg.crop_region
 _DEPTH_CLIP = (0.0, 2.5)
 # Must match delayed_visualizable_image: sensor_history_length=37, history_skip=5, num_output=8, delay=0.
 _DEPTH_HISTORY_LEN = 37
@@ -791,13 +791,14 @@ def run_mujoco_onnx(
     target_pos = np.zeros((cfg.robot_config.num_actions,), dtype=np.double)
     action = np.zeros((cfg.robot_config.num_actions,), dtype=np.double)
 
+    frame_stack = int(cfg.robot_config.frame_stack)
     hist = {
-        "base_ang_vel": TermHistory(8, 3),
-        "projected_gravity": TermHistory(8, 3),
-        "velocity_commands": TermHistory(8, 3),
-        "joint_pos": TermHistory(8, cfg.robot_config.num_actions),
-        "joint_vel": TermHistory(8, cfg.robot_config.num_actions),
-        "actions": TermHistory(8, cfg.robot_config.num_actions),
+        "base_ang_vel": TermHistory(frame_stack, 3),
+        "projected_gravity": TermHistory(frame_stack, 3),
+        "velocity_commands": TermHistory(frame_stack, 3),
+        "joint_pos": TermHistory(frame_stack, cfg.robot_config.num_actions),
+        "joint_vel": TermHistory(frame_stack, cfg.robot_config.num_actions),
+        "actions": TermHistory(frame_stack, cfg.robot_config.num_actions),
     }
     depth_ring: deque[np.ndarray] = deque(maxlen=_DEPTH_HISTORY_LEN)
     is_first_policy = True
@@ -1160,6 +1161,7 @@ if __name__ == "__main__":
                 dtype=np.double,
             )
             tau_limit = 200.0 * np.ones(23, dtype=np.double)
+            frame_stack = 8  # obs history length
             num_actions = 23
             action_scale = 0.25
             usd2urdf = [0, 6, 12, 1, 7, 13, 18, 2, 8, 14, 19, 3, 9, 15, 20, 4, 10, 16, 21, 5, 11, 17, 22]
