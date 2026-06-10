@@ -134,8 +134,8 @@ class RslRlOnPolicyRunnerAmpCfg(RslRlOnPolicyRunnerCfg):
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
-        actor_obs_normalization=False,
-        critic_obs_normalization=False,
+        actor_obs_normalization=True,
+        critic_obs_normalization=True,
         activation="elu",
     )
     algorithm = RslRlPpoAmpAlgorithmCfg(
@@ -161,15 +161,15 @@ class RslRlOnPolicyRunnerAmpCfg(RslRlOnPolicyRunnerCfg):
         amp_cfg=RslRlAmpCfg(
             disc_obs_buffer_size=100,
             grad_penalty_scale=10.0,
-            disc_trunk_weight_decay=1.0e-4,
-            disc_linear_weight_decay=1.0e-2,
+            disc_trunk_weight_decay=1.0e-3,
+            disc_linear_weight_decay=1.0e-1,
             disc_learning_rate=1.0e-4,
             disc_max_grad_norm=1.0,
             amp_discriminator=RslRlAmpCfg.AMPDiscriminatorCfg(
                 hidden_dims=[1024, 512],
                 activation="elu",
-                style_reward_scale=2.0,
-                task_style_lerp=0.3
+                style_reward_scale=1.5,
+                task_style_lerp=0.6
             ),
             loss_type="LSGAN"
         ),

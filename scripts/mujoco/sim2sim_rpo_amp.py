@@ -32,12 +32,12 @@
 import numpy as np
 import mujoco, mujoco_viewer
 from collections import deque
-from typing import Any
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
 import torch
 import cv2
 import matplotlib.pyplot as plt
+import glfw
 from pynput import keyboard
 import time
 from robolab.assets import ISAAC_DATA_DIR
@@ -78,49 +78,148 @@ class TermHistory:
         return np.concatenate(list(self._dq), axis=0)
 
 
+class CompactOverlayMujocoViewer(mujoco_viewer.MujocoViewer):
+    """MujocoViewer with the default left-side overlay hidden."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ctx = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_200.value)
+        self._velocity_table = None
+
+    def set_velocity_table(self, cmd_values, vel_values):
+        self._velocity_table = (tuple(float(v) for v in cmd_values), tuple(float(v) for v in vel_values))
+
+    def _create_overlay(self):
+        super()._create_overlay()
+        self._overlay.pop(mujoco.mjtGridPos.mjGRID_TOPLEFT, None)
+        self._overlay.pop(mujoco.mjtGridPos.mjGRID_BOTTOMLEFT, None)
+
+    def _draw_velocity_table(self):
+        if self._velocity_table is None:
+            return
+
+        cmd_values, vel_values = self._velocity_table
+        label_x = 0.365
+        col_sign_x = (0.455, 0.535, 0.615)
+        col_value_x = (0.477, 0.557, 0.637)
+        header_x = (0.475, 0.555, 0.635)
+        header_y = 0.950
+        cmd_y = 0.910
+        vel_y = 0.870
+
+        def draw(text, x, y):
+            mujoco.mjr_text(mujoco.mjtFont.mjFONT_NORMAL, text, self.ctx, x, y, 0.0, 0.0, 0.0)
+            mujoco.mjr_text(mujoco.mjtFont.mjFONT_NORMAL, text, self.ctx, x + 0.001, y, 0.0, 0.0, 0.0)
+
+        for axis, x in zip(("x", "y", "z"), header_x):
+            draw(axis, x, header_y)
+        draw("cmd", label_x, cmd_y)
+        draw("vel", label_x, vel_y)
+
+        for row_y, values in ((cmd_y, cmd_values), (vel_y, vel_values)):
+            for sign_x, value_x, value in zip(col_sign_x, col_value_x, values):
+                draw("+" if value >= 0.0 else "-", sign_x, row_y)
+                draw(f"{abs(value):.2f}", value_x, row_y)
+
+    def render(self):
+        if self.render_mode == "offscreen":
+            raise NotImplementedError("Use 'read_pixels()' for 'offscreen' mode.")
+        if not self.is_alive:
+            raise Exception("GLFW window does not exist but you tried to render.")
+        if glfw.window_should_close(self.window):
+            self.close()
+            return
+
+        def update():
+            self._create_overlay()
+            render_start = time.time()
+            width, height = glfw.get_framebuffer_size(self.window)
+            self.viewport.width, self.viewport.height = width, height
+
+            with self._gui_lock:
+                mujoco.mjv_updateScene(
+                    self.model,
+                    self.data,
+                    self.vopt,
+                    self.pert,
+                    self.cam,
+                    mujoco.mjtCatBit.mjCAT_ALL.value,
+                    self.scn,
+                )
+                for marker in self._markers:
+                    self._add_marker_to_scene(marker)
+
+                mujoco.mjr_render(self.viewport, self.scn, self.ctx)
+                for gridpos, (t1, t2) in self._overlay.items():
+                    mujoco.mjr_overlay(
+                        mujoco.mjtFontScale.mjFONTSCALE_200,
+                        gridpos,
+                        self.viewport,
+                        t1,
+                        t2,
+                        self.ctx,
+                    )
+                self._draw_velocity_table()
+
+                if not self._hide_graph:
+                    for idx, fig in enumerate(self.figs):
+                        width_adjustment = width % 4
+                        x = int(3 * width / 4) + width_adjustment
+                        y = idx * int(height / 4)
+                        viewport = mujoco.MjrRect(x, y, int(width / 4), int(height / 4))
+                        has_lines = len([i for i in fig.linename if i != b""])
+                        if has_lines:
+                            mujoco.mjr_figure(viewport, fig, self.ctx)
+
+                glfw.swap_buffers(self.window)
+            glfw.poll_events()
+            self._time_per_render = 0.9 * self._time_per_render + 0.1 * (time.time() - render_start)
+            self._overlay.clear()
+
+        if self._paused:
+            while self._paused:
+                update()
+                if glfw.window_should_close(self.window):
+                    self.close()
+                    break
+                if self._advance_by_one_step:
+                    self._advance_by_one_step = False
+                    break
+        else:
+            self._loop_count += self.model.opt.timestep / (self._time_per_render * self._run_speed)
+            if self._render_every_frame:
+                self._loop_count = 1
+            while self._loop_count > 0:
+                update()
+                self._loop_count -= 1
+
+        self._markers[:] = []
+        self.apply_perturbations()
+
+
 def open_interactive_viewer(
     model: mujoco.MjModel,
     data: mujoco.MjData,
     fallback_width: int = 1920,
     fallback_height: int = 1080,
-    show_left_ui: bool | None = False,
-    show_right_ui: bool | None = False,
-) -> tuple[Any, bool, Any]:
-    """Prefer the official MuJoCo passive viewer, matching the parkour sim2sim UI."""
-    sl = False if show_left_ui is None else bool(show_left_ui)
-    sr = False if show_right_ui is None else bool(show_right_ui)
-    try:
-        import mujoco.viewer
-
-        ctx = mujoco.viewer.launch_passive(
-            model,
-            data,
-            show_left_ui=int(sl),
-            show_right_ui=int(sr),
-        )
-        viewer = ctx.__enter__()
-        viewer.cam.distance = 4.0
-        viewer.cam.azimuth = 45.0
-        viewer.cam.elevation = -20.0
-        viewer.cam.lookat[:] = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-        return viewer, True, ctx
-    except Exception as e:
-        print(f"[WARN] launch_passive unavailable ({e!r}); falling back to mujoco_viewer.")
-        viewer = mujoco_viewer.MujocoViewer(
-            model, data, mode="window", width=int(fallback_width), height=int(fallback_height)
-        )
-        viewer.cam.distance = 4.0
-        viewer.cam.azimuth = 45.0
-        viewer.cam.elevation = -20.0
-        viewer.cam.lookat = [0, 0, 1]
-        return viewer, False, None
+) -> mujoco_viewer.MujocoViewer:
+    viewer = CompactOverlayMujocoViewer(
+        model, data, mode="window", width=int(fallback_width), height=int(fallback_height)
+    )
+    viewer.cam.distance = 4.0
+    viewer.cam.azimuth = 45.0
+    viewer.cam.elevation = -20.0
+    viewer.cam.lookat = [0, 0, 1]
+    return viewer
 
 
-def close_interactive_viewer(viewer: Any, use_passive: bool, passive_ctx: Any) -> None:
-    if use_passive and passive_ctx is not None:
-        passive_ctx.__exit__(None, None, None)
-    elif viewer is not None:
-        viewer.close()
+def sleep_until(target_time: float, busy_wait_margin: float) -> None:
+    remaining = target_time - time.perf_counter()
+    if remaining > busy_wait_margin:
+        time.sleep(remaining - busy_wait_margin)
+    while time.perf_counter() < target_time:
+        pass
+
 
 class cmd:
     vx = 0.0
@@ -225,13 +324,16 @@ def get_obs(data):
 
 def viewer_velocity_overlay(viewer, cmd_vx, cmd_vy, cmd_wz, base_v, base_omega):
     """Show command and measured base-frame velocity in the active MuJoCo viewer."""
-    left_col = f"cmd vx:{float(cmd_vx):+.3f} vy:{float(cmd_vy):+.3f} wz:{float(cmd_wz):+.3f}"
-    right_col = f"vel vx:{float(base_v[0]):+.3f} vy:{float(base_v[1]):+.3f} wz:{float(base_omega[2]):+.3f}"
-    if hasattr(viewer, "set_texts"):
+    if hasattr(viewer, "set_velocity_table"):
+        viewer.set_velocity_table((cmd_vx, cmd_vy, cmd_wz), (base_v[0], base_v[1], base_omega[2]))
+    elif hasattr(viewer, "set_texts"):
+        left_col = "\ncmd\nvel"
+        right_col = (
+            "   x       y       z\n"
+            f"{cmd_vx:+.2f}   {cmd_vy:+.2f}   {cmd_wz:+.2f}\n"
+            f"{base_v[0]:+.2f}   {base_v[1]:+.2f}   {base_omega[2]:+.2f}"
+        )
         viewer.set_texts((None, None, left_col, right_col))
-    elif hasattr(viewer, "_overlay"):
-        gridpos = mujoco.mjtGridPos.mjGRID_BOTTOMRIGHT
-        viewer._overlay[gridpos] = [left_col, right_col]
 
 def pd_control(target_q, q, kp, target_dq, dq, kd):
     '''Calculates torques from position commands
@@ -286,7 +388,7 @@ def run_mujoco(policy, cfg, headless=False):
         cam.lookat = [0, 0, 1]  
         out = cv2.VideoWriter('simulation.mp4', fourcc, 1.0/cfg.sim_config.dt/cfg.sim_config.decimation, (1920, 1080))
     else:
-        viewer, use_passive_viewer, passive_viewer_ctx = open_interactive_viewer(
+        viewer = open_interactive_viewer(
             model,
             data,
             fallback_width=1920,
@@ -307,6 +409,8 @@ def run_mujoco(policy, cfg, headless=False):
     }
 
     count_lowlevel = 0
+    next_render_time = 0.0
+    render_interval = 1.0 / cfg.sim_config.render_fps
 
     # --- Data collection lists for plotting (LOW FREQUENCY ONLY) ---
     time_data = []
@@ -322,13 +426,9 @@ def run_mujoco(policy, cfg, headless=False):
     # -------------------------------------------------------------
     is_first_frame = True
     
-    start_time = time.time()
+    start_time = time.perf_counter()
     
-    for step in tqdm(range(int(cfg.sim_config.sim_duration / cfg.sim_config.dt)), desc="Simulating..."):
-        if not headless and use_passive_viewer and not viewer.is_running():
-            print("[INFO] Viewer closed; exiting simulation loop.")
-            break
-
+    for step in tqdm(range(int(cfg.sim_config.sim_duration / cfg.sim_config.dt)), desc="Simulating...", mininterval=1.0):
         if cmd.reset_requested:
             data.qpos[:] = initial_qpos
             data.qvel[:] = initial_qvel
@@ -414,20 +514,6 @@ def run_mujoco(policy, cfg, headless=False):
                     cam.lookat = [float(base_pos[0]), float(base_pos[1]), float(base_pos[2])]
                 img = renderer.render() 
                 out.write(img)
-            else:
-                if cmd.camera_follow:
-                    base_pos = data.qpos[0:3].tolist()
-                    if use_passive_viewer:
-                        viewer.cam.lookat[:] = np.array(
-                            [float(base_pos[0]), float(base_pos[1]), float(base_pos[2])], dtype=np.float64
-                        )
-                    else:
-                        viewer.cam.lookat = [float(base_pos[0]), float(base_pos[1]), float(base_pos[2])]
-                viewer_velocity_overlay(viewer, cmd.vx, cmd.vy, cmd.dyaw, v, omega)
-                if use_passive_viewer:
-                    viewer.sync()
-                else:
-                    viewer.render()
             
         target_vel = np.zeros((cfg.robot_config.num_actions), dtype=np.double)
         # Generate PD control
@@ -438,17 +524,25 @@ def run_mujoco(policy, cfg, headless=False):
         mujoco.mj_step(model, data)
 
         count_lowlevel += 1
+
+        if not headless:
+            sim_time = (step + 1) * cfg.sim_config.dt
+            if sim_time >= next_render_time:
+                if cmd.camera_follow:
+                    base_pos = data.qpos[0:3].tolist()
+                    viewer.cam.lookat = [float(base_pos[0]), float(base_pos[1]), float(base_pos[2])]
+                viewer_velocity_overlay(viewer, cmd.vx, cmd.vy, cmd.dyaw, v, omega)
+                viewer.render()
+                while next_render_time <= sim_time:
+                    next_render_time += render_interval
         
-        # After each simulation step, calculate the elapsed real time and add delay to match simulation time
-        elapsed_real_time = time.time() - start_time
-        target_sim_time = (step + 1) * cfg.sim_config.dt
-        if elapsed_real_time < target_sim_time:
-            time.sleep(target_sim_time - elapsed_real_time)
+        target_wall_time = start_time + (step + 1) * cfg.sim_config.dt
+        sleep_until(target_wall_time, cfg.sim_config.busy_wait_margin)
 
     if headless:
         out.release()
     else:
-        close_interactive_viewer(viewer, use_passive_viewer, passive_viewer_ctx)
+        viewer.close()
     
     # Stop keyboard listener
     keyboard_listener.stop()
@@ -560,13 +654,15 @@ if __name__ == '__main__':
             sim_duration = 1000000.0
             dt = 0.005
             decimation = 4
+            render_fps = 120.0
+            busy_wait_margin = 0.0005
 
         class robot_config:
             kps = np.array([100, 100, 100, 150, 40, 40, 100, 100, 100, 150, 40, 40, 150, 40, 40, 40, 30, 20, 40, 40, 40, 30, 20], dtype=np.double)
             kds = np.array([3.3, 3.3, 3.3, 5.0, 2.0, 2.0, 3.3, 3.3, 3.3, 5.0, 2.0, 2.0, 5.0, 2.0, 2.0, 2.0, 1.5, 1.0, 2.0, 2.0, 2.0, 1.5, 1.0], dtype=np.double)
             default_pos = np.array([0, 0, -0.1, 0.3, -0.2, 0, 0, 0, -0.1, 0.3, -0.2, 0, 0, 0.18, 0.06, 0, 0.78, 0, 0.18, -0.06, 0, 0.78, 0], dtype=np.double)
             tau_limit = 200. * np.ones(23, dtype=np.double)
-            frame_stack = 1 # obs history length
+            frame_stack = 3 # obs history length
             num_single_obs = 78
             num_observations = num_single_obs * frame_stack
             num_actions = 23

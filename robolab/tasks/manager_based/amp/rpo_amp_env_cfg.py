@@ -89,6 +89,16 @@ class RPOAmpRewards():
     joint_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0)
     joint_energy = RewTerm(func=mdp.joint_energy, weight=0)
     joint_regularization = RewTerm(func=mdp.joint_deviation_l1, weight=0)
+    arm_pitch_mean_offset = RewTerm(
+        func=mdp.paired_joints_mean_deviation_l1,
+        weight=0,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                joint_names=[".*_arm_pitch_joint"],
+            )
+        },
+    )
     joint_torques_l2 = RewTerm(
         func=mdp.joint_torques_l2,
         weight=0.0,
@@ -101,6 +111,20 @@ class RPOAmpRewards():
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_ankle_roll_link"),
+        },
+    )
+
+    feet_distance_y = RewTerm(
+        func=mdp.feet_distance_y,
+        weight=0.1,
+        params={
+            "asset_cfg": SceneEntityCfg(
+                "robot",
+                body_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+                preserve_order=True,
+            ),
+            "min": 0.14,
+            "max": 0.50,
         },
     )
     
@@ -151,28 +175,18 @@ class RPOAmpEnvCfg(AmpEnvCfg):
         )
         self.motion_data.motion_dataset.motion_data_weights={
             
-            # CMU
-            "127_04": 1, # walk to run
-            "127_06": 1, # run 
+            "127_06": 16, 
             
-            #ACCAD
-            "A1-_Stand_stageii": 1,
+            "A1-_Stand_stageii": 6.5,
             
-            "B9_-__Walk_turn_left_90_stageii":1,
-            "B10_-__Walk_turn_left_45_stageii":1,
-            "B13_-__Walk_turn_right_90_stageii":1,
-            "B14_-__Walk_turn_right_45_t2_stageii":1,
-            "B15_-__Walk_turn_around_stageii":1,
+            "run_start_180_R_001__A345_M":4,
+            "run_start_180_R_001__A345":4,
             
-            "C12_-_run_turn_left_45_stageii":1,
-            "C17_-_run_change_direction_stageii":1,
+            "move_l":4.5,
+            "move_r":5,
             
-            # GVHMR
-            "move_back":1,
-            "move_l":1,
-            "move_r":1,
-            "turn_l":1,
-            "turn_r":1,
+            "run_stop_180_R_001__A345_M":3,
+            "run_stop_180_R_001__A345":3
         }
         
         # ------------------------------------------------------
@@ -186,13 +200,13 @@ class RPOAmpEnvCfg(AmpEnvCfg):
                 
         # discriminator observations
         
-        # self.observations.disc.key_body_pos_b.params = {
-        #     "asset_cfg": SceneEntityCfg(
-        #         name="robot", 
-        #         body_names=KEY_BODY_NAMES, 
-        #         preserve_order=True
-        #     )
-        # }
+        self.observations.disc.key_body_pos_b.params = {
+            "asset_cfg": SceneEntityCfg(
+                name="robot", 
+                body_names=KEY_BODY_NAMES, 
+                preserve_order=True
+            )
+        }
         self.observations.disc.history_length = AMP_NUM_STEPS
         
         # ------------------------------------------------------
@@ -210,7 +224,7 @@ class RPOAmpEnvCfg(AmpEnvCfg):
         # base
         # self.rewards.lin_vel_z_l2.weight = -0.1
         self.rewards.ang_vel_xy_l2.weight = -0.1
-        self.rewards.flat_orientation_l2.weight = -1.0
+        self.rewards.flat_orientation_l2.weight = -1.2
         
         # joint
         self.rewards.joint_vel_l2.weight = -2e-4
@@ -219,10 +233,12 @@ class RPOAmpEnvCfg(AmpEnvCfg):
         self.rewards.joint_pos_limits.weight = -1.0
         self.rewards.joint_energy.weight = -1e-4
         self.rewards.joint_torques_l2.weight = -1e-5
+        self.rewards.arm_pitch_mean_offset.weight = -0.1
         
         # feet
         self.rewards.feet_slide.weight = -0.1
         self.rewards.sound_suppression.weight = -5e-5
+        self.rewards.feet_distance_y.weight = 0.05
 
 
         self.rewards.undesired_contacts.weight = -10.0

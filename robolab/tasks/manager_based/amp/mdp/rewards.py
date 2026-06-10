@@ -134,6 +134,19 @@ def joint_deviation_l1(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scene
     return torch.sum(torch.abs(angle), dim=1)
 
 
+def paired_joints_mean_deviation_l1(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Penalize the shared offset of paired joints from their default positions.
+
+    This keeps symmetric paired joints centered around their nominal pose while still allowing
+    anti-phase motion, such as normal left/right arm swing.
+    """
+    asset: Articulation = env.scene[asset_cfg.name]
+    joint_deviation = asset.data.joint_pos[:, asset_cfg.joint_ids] - asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+    return torch.abs(torch.mean(joint_deviation, dim=1))
+
+
 def joint_pos_limits(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """Penalize joint positions if they cross the soft limits.
 
