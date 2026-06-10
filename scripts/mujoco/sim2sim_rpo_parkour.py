@@ -18,6 +18,7 @@ from collections import deque
 from typing import Any, ClassVar
 
 import cv2
+import glfw
 import matplotlib.pyplot as plt
 import mujoco
 import mujoco_viewer
@@ -75,13 +76,13 @@ _DEPTH_RAY_MAX = 2.5
 _SIM2SIM_PERF_DEPTH_VIS_SCALE = 6
 _SIM2SIM_PERF_DEBUG_OBS = False
 _SIM2SIM_PERF_ONNX_PROVIDERS: list[str] | None = None
-_SIM2SIM_PERF_REALTIME_SYNC = False
+_SIM2SIM_PERF_REALTIME_SYNC = True
 _SIM2SIM_PERF_QUIET = True
 _SIM2SIM_PERF_DEPTH_VIS_EVERY_STEP = False
 _SIM2SIM_PERF_DEPTH_VIS_POLICY_STRIDE = 2
 _SIM2SIM_PERF_VIEWER_SYNC_EVERY: int | None = None
-_SIM2SIM_PERF_VIEWER_FALLBACK_W = 960
-_SIM2SIM_PERF_VIEWER_FALLBACK_H = 540
+_SIM2SIM_PERF_VIEWER_FALLBACK_W = 1920
+_SIM2SIM_PERF_VIEWER_FALLBACK_H = 1080
 # Passive MuJoCo viewer: overlay cmd vs base-frame velocities (``get_obs`` / policy frame).
 _SIM2SIM_PERF_SHOW_VELOCITY_OVERLAY = True
 _SIM2SIM_PERF_ONNX_PROVIDERS = ["CPUExecutionProvider"]
@@ -91,8 +92,128 @@ _CHASE_UP_M = 0.6
 _CHASE_LOOK_AHEAD_M = 0.8
 _CHASE_BODY_NAME = "base_link"
 _SPEED_LIMIT_X = 0.8
-_SPEED_LIMIT_Y = 0.0
+_SPEED_LIMIT_Y = 0.8
 _SPEED_LIMIT_Z = 1.0
+
+
+class CompactOverlayMujocoViewer(mujoco_viewer.MujocoViewer):
+    """MujocoViewer with the default left-side overlay hidden."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ctx = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_200.value)
+        self._velocity_table = None
+
+    def set_velocity_table(self, cmd_values, vel_values):
+        self._velocity_table = (tuple(float(v) for v in cmd_values), tuple(float(v) for v in vel_values))
+
+    def _create_overlay(self):
+        super()._create_overlay()
+        self._overlay.pop(mujoco.mjtGridPos.mjGRID_TOPLEFT, None)
+        self._overlay.pop(mujoco.mjtGridPos.mjGRID_BOTTOMLEFT, None)
+
+    def _draw_velocity_table(self):
+        if self._velocity_table is None:
+            return
+
+        cmd_values, vel_values = self._velocity_table
+        label_x = 0.365
+        col_sign_x = (0.455, 0.535, 0.615)
+        col_value_x = (0.477, 0.557, 0.637)
+        header_x = (0.475, 0.555, 0.635)
+        header_y = 0.950
+        cmd_y = 0.910
+        vel_y = 0.870
+
+        def draw(text, x, y):
+            mujoco.mjr_text(mujoco.mjtFont.mjFONT_NORMAL, text, self.ctx, x, y, 0.0, 0.0, 0.0)
+            mujoco.mjr_text(mujoco.mjtFont.mjFONT_NORMAL, text, self.ctx, x + 0.001, y, 0.0, 0.0, 0.0)
+
+        for axis, x in zip(("x", "y", "z"), header_x):
+            draw(axis, x, header_y)
+        draw("cmd", label_x, cmd_y)
+        draw("vel", label_x, vel_y)
+
+        for row_y, values in ((cmd_y, cmd_values), (vel_y, vel_values)):
+            for sign_x, value_x, value in zip(col_sign_x, col_value_x, values):
+                draw("+" if value >= 0.0 else "-", sign_x, row_y)
+                draw(f"{abs(value):.2f}", value_x, row_y)
+
+    def render(self):
+        if self.render_mode == "offscreen":
+            raise NotImplementedError("Use 'read_pixels()' for 'offscreen' mode.")
+        if not self.is_alive:
+            raise Exception("GLFW window does not exist but you tried to render.")
+        if glfw.window_should_close(self.window):
+            self.close()
+            return
+
+        def update():
+            self._create_overlay()
+            render_start = time.time()
+            width, height = glfw.get_framebuffer_size(self.window)
+            self.viewport.width, self.viewport.height = width, height
+
+            with self._gui_lock:
+                mujoco.mjv_updateScene(
+                    self.model,
+                    self.data,
+                    self.vopt,
+                    self.pert,
+                    self.cam,
+                    mujoco.mjtCatBit.mjCAT_ALL.value,
+                    self.scn,
+                )
+                for marker in self._markers:
+                    self._add_marker_to_scene(marker)
+
+                mujoco.mjr_render(self.viewport, self.scn, self.ctx)
+                for gridpos, (t1, t2) in self._overlay.items():
+                    mujoco.mjr_overlay(
+                        mujoco.mjtFontScale.mjFONTSCALE_200,
+                        gridpos,
+                        self.viewport,
+                        t1,
+                        t2,
+                        self.ctx,
+                    )
+                self._draw_velocity_table()
+
+                if not self._hide_graph:
+                    for idx, fig in enumerate(self.figs):
+                        width_adjustment = width % 4
+                        x = int(3 * width / 4) + width_adjustment
+                        y = idx * int(height / 4)
+                        viewport = mujoco.MjrRect(x, y, int(width / 4), int(height / 4))
+                        has_lines = len([i for i in fig.linename if i != b""])
+                        if has_lines:
+                            mujoco.mjr_figure(viewport, fig, self.ctx)
+
+                glfw.swap_buffers(self.window)
+            glfw.poll_events()
+            self._time_per_render = 0.9 * self._time_per_render + 0.1 * (time.time() - render_start)
+            self._overlay.clear()
+
+        if self._paused:
+            while self._paused:
+                update()
+                if glfw.window_should_close(self.window):
+                    self.close()
+                    break
+                if self._advance_by_one_step:
+                    self._advance_by_one_step = False
+                    break
+        else:
+            self._loop_count += self.model.opt.timestep / (self._time_per_render * self._run_speed)
+            if self._render_every_frame:
+                self._loop_count = 1
+            while self._loop_count > 0:
+                update()
+                self._loop_count -= 1
+
+        self._markers[:] = []
+        self.apply_perturbations()
+
 
 def mj_macro_step(model: mujoco.MjModel, data: mujoco.MjData, *, n_sub: int) -> None:
     """Advance simulation by one *policy* sub-step duration (``cfg.dt``) using ``n_sub`` MuJoCo steps."""
@@ -103,40 +224,20 @@ def mj_macro_step(model: mujoco.MjModel, data: mujoco.MjData, *, n_sub: int) -> 
 def open_interactive_viewer(
     model: mujoco.MjModel,
     data: mujoco.MjData,
-    fallback_width: int = 1280,
-    fallback_height: int = 720,
+    fallback_width: int = 1920,
+    fallback_height: int = 1080,
     show_left_ui: bool | None = False,
     show_right_ui: bool | None = False,
 ) -> tuple[Any, bool, Any]:
-    """Prefer MuJoCo 3 official ``launch_passive`` (separate process / more reliable GUI); fallback ``mujoco_viewer``."""
-    sl = False if show_left_ui is None else bool(show_left_ui)
-    sr = False if show_right_ui is None else bool(show_right_ui)
-    try:
-        import mujoco.viewer
-
-        # Bindings expect int flags (0/1); None/bool used to break older call sites.
-        ctx = mujoco.viewer.launch_passive(
-            model,
-            data,
-            show_left_ui=int(sl),
-            show_right_ui=int(sr),
-        )
-        v = ctx.__enter__()
-        v.cam.distance = 4.0
-        v.cam.azimuth = 45.0
-        v.cam.elevation = -20.0
-        v.cam.lookat[:] = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-        return v, True, ctx
-    except Exception as e:
-        print(f"[WARN] launch_passive unavailable ({e!r}); falling back to mujoco_viewer.")
-        v = mujoco_viewer.MujocoViewer(
-            model, data, mode="window", width=int(fallback_width), height=int(fallback_height)
-        )
-        v.cam.distance = 4.0
-        v.cam.azimuth = 45.0
-        v.cam.elevation = -20.0
-        v.cam.lookat = [0, 0, 1]
-        return v, False, None
+    """Open the same interactive MuJoCo viewer path used by the AMP sim2sim script."""
+    v = CompactOverlayMujocoViewer(
+        model, data, mode="window", width=int(fallback_width), height=int(fallback_height)
+    )
+    v.cam.distance = 4.0
+    v.cam.azimuth = 45.0
+    v.cam.elevation = -20.0
+    v.cam.lookat = [0, 0, 1]
+    return v, False, None
 
 
 def passive_viewer_velocity_overlay(
@@ -147,18 +248,23 @@ def passive_viewer_velocity_overlay(
     cmd_vy: float,
     cmd_wz: float,
 ) -> None:
-    """Show keyboard cmd vs measured base velocity on ``launch_passive`` viewer (base link frame, same as obs).
+    """Show keyboard cmd vs measured base velocity in the active viewer (base link frame, same as obs).
 
     Do **not** call ``viewer.lock()`` here: the sim loop can outrun the GUI; holding the lock every
-    sub-step freezes the viewer. Call only on the same cadence as ``viewer.sync()`` on the main thread.
+    sub-step freezes the viewer. Call only on the same cadence as viewer render/sync on the main thread.
     """
-    if not hasattr(viewer, "set_texts"):
-        return
     try:
         _, _, _, v, omega, _ = get_obs(data, model)
-        left_col = f"cmd vx:{cmd_vx:+.3f} vy:{cmd_vy:+.3f} wz:{cmd_wz:+.3f}"
-        right_col = f"vel vx:{float(v[0]):+.3f} vy:{float(v[1]):+.3f} wz:{float(omega[2]):+.3f}"
-        viewer.set_texts((None, None, left_col, right_col))
+        if hasattr(viewer, "set_velocity_table"):
+            viewer.set_velocity_table((cmd_vx, cmd_vy, cmd_wz), (v[0], v[1], omega[2]))
+        elif hasattr(viewer, "set_texts"):
+            left_col = "\ncmd\nvel"
+            right_col = (
+                "   x       y       z\n"
+                f"{cmd_vx:+.2f}   {cmd_vy:+.2f}   {cmd_wz:+.2f}\n"
+                f"{v[0]:+.2f}   {v[1]:+.2f}   {omega[2]:+.2f}"
+            )
+            viewer.set_texts((None, None, left_col, right_col))
     except Exception:
         pass
 
@@ -189,7 +295,7 @@ class cmd:
 
     # Max |d(command)/dt| when moving toward keyboard target (linear ramp; units/s).
     ramp_vx_per_s = 2.0
-    ramp_vy_per_s = 0.0
+    ramp_vy_per_s = 2.0
     ramp_dyaw_per_s = 3.0
 
     _smooth_vx: ClassVar[float] = 0.0
@@ -1014,11 +1120,11 @@ def run_mujoco_onnx(
                 update_follow_camera(viewer.cam, data, model)
             stride = viewer_stride
             if count_lowlevel % stride == 0:
+                if _SIM2SIM_PERF_SHOW_VELOCITY_OVERLAY:
+                    passive_viewer_velocity_overlay(
+                        viewer, model, data, last_cmd_vx, last_cmd_vy, last_cmd_dyaw
+                    )
                 if use_passive_viewer:
-                    if _SIM2SIM_PERF_SHOW_VELOCITY_OVERLAY:
-                        passive_viewer_velocity_overlay(
-                            viewer, model, data, last_cmd_vx, last_cmd_vy, last_cmd_dyaw
-                        )
                     viewer.sync()
                 else:
                     viewer.render()
@@ -1087,7 +1193,7 @@ def run_mujoco_onnx(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RPO parkour sim2sim (depth_encoder.onnx + actor.onnx).")
     default_export = (
-        "exported"
+        "roboparty_train/logs/rsl_rl/exported"
     )
     parser.add_argument(
         "--depth_encoder",

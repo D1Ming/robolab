@@ -150,7 +150,7 @@ class ObservationsCfg():
         
 
         def __post_init__(self):
-            self.history_length = 1
+            self.history_length = 3
             self.enable_corruption = True
             self.concatenate_terms = True
 
@@ -176,7 +176,7 @@ class ObservationsCfg():
         # )
 
         def __post_init__(self):
-            self.history_length = 1
+            self.history_length = 3
             self.enable_corruption = False
             self.concatenate_terms = True
     
@@ -189,10 +189,10 @@ class ObservationsCfg():
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         joint_pos = ObsTerm(func=mdp.joint_pos)
         joint_vel = ObsTerm(func=mdp.joint_vel)
-        # key_body_pos_b = ObsTerm(
-        #     func=mdp.key_body_pos_b,
-        #     params=MISSING,
-        # )
+        key_body_pos_b = ObsTerm(
+            func=mdp.key_body_pos_b,
+            params=MISSING,
+        )
         
         def __post_init__(self):
             self.enable_corruption = False
@@ -240,13 +240,13 @@ class ObservationsCfg():
                 "flatten_steps_dim": False,
             }
         )
-        # ref_key_body_pos_b = ObsTerm(
-        #     func=mdp.ref_key_body_pos_b,
-        #     params={
-        #         "animation": MISSING,
-        #         "flatten_steps_dim": False,
-        #     }
-        # )
+        ref_key_body_pos_b = ObsTerm(
+            func=mdp.ref_key_body_pos_b,
+            params={
+                "animation": ANIMATION_TERM_NAME,
+                "flatten_steps_dim": False,
+            }
+        )
         
         def __post_init__(self):
             self.enable_corruption = False
